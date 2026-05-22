@@ -1,0 +1,21 @@
+---
+import "~/styles/global.css";
+
+interface Props {
+  title?: string;
+}
+const { title = "LLMVis · 从 Agentic Context 到 KV Cache" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content="Interactive visualization tutorial: from Agentic Context to KV Cache" />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen">
+    <slot />
+  </body>
+</html>

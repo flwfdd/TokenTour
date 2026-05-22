@@ -1,0 +1,43 @@
+# ─── Line endings ────────────────────────────────────────────────────────
+# Normalize text files to LF in the repo; checkout LF on all platforms so
+# Jinja templates / scripts stay byte-identical to upstream regardless of OS.
+* text=auto eol=lf
+
+# Force-binary so git never tries to mangle them.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.svg  text eol=lf
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.eot   binary
+
+# ─── Jinja templates ─────────────────────────────────────────────────────
+# Treat as plain text but pinned to LF (vendored from upstream HF /
+# vllm-project; any line-ending drift would break byte-equality checks
+# done by `pnpm sync-chat-templates`).
+*.jinja text eol=lf
+
+# ─── Git LFS tracking ────────────────────────────────────────────────────
+# Heavyweight model / tokenizer artifacts go through LFS if you ever
+# decide to vendor them. `public/tokenizers/` itself stays gitignored;
+# these rules apply to anything else (custom fonts, screenshots, demo
+# captures, sample model weights) that someone might add later.
+*.safetensors filter=lfs diff=lfs merge=lfs -text
+*.bin         filter=lfs diff=lfs merge=lfs -text
+*.gguf        filter=lfs diff=lfs merge=lfs -text
+*.onnx        filter=lfs diff=lfs merge=lfs -text
+*.pt          filter=lfs diff=lfs merge=lfs -text
+*.pth         filter=lfs diff=lfs merge=lfs -text
+*.mp4         filter=lfs diff=lfs merge=lfs -text
+*.mov         filter=lfs diff=lfs merge=lfs -text
+*.zip         filter=lfs diff=lfs merge=lfs -text
+
+# ─── Generated / lockfiles ──────────────────────────────────────────────
+# Suppress GitHub diff noise; still tracked.
+pnpm-lock.yaml linguist-generated=true -diff

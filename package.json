@@ -1,0 +1,42 @@
+{
+  "name": "llmvis",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Interactive visualization tutorial: from Agentic Context to KV Cache",
+  "packageManager": "pnpm@10.28.1",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "typecheck": "tsc --noEmit",
+    "fetch-tokenizers": "node scripts/fetch-tokenizers.mjs",
+    "sync-chat-templates": "node scripts/sync-chat-templates.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "^10.1.1",
+    "@astrojs/react": "^5.0.5",
+    "@huggingface/jinja": "^0.5.9",
+    "@huggingface/transformers": "^4.2.0",
+    "@tailwindcss/vite": "^4.3.0",
+    "astro": "^6.3.6",
+    "framer-motion": "^12.39.0",
+    "gpt-tokenizer": "^3.4.0",
+    "nanoid": "^5.1.11",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.3.0",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "tsx": "^4.20.7",
+    "typescript": "^6.0.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "vite": "^7"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+# ─── Dependencies ────────────────────────────────────────────────────────
+node_modules
+.pnpm-store
+.pnpm-debug.log*
+
+# ─── Build output ────────────────────────────────────────────────────────
+dist
+.astro
+.output
+.vercel
+.netlify
+.cache
+
+# ─── Editor / OS ─────────────────────────────────────────────────────────
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.log
+*.swp
+*~
+
+# ─── Env / secrets ───────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Other lockfiles (we use pnpm only) ──────────────────────────────────
+package-lock.json
+yarn.lock
+bun.lockb
+
+# ─── Project-specific ────────────────────────────────────────────────────
+# Bundled HF tokenizers (run `pnpm fetch-tokenizers` to populate).
+# Each `tokenizer.json` is 5–20 MB; we don't ship them in-repo.
+public/tokenizers/
