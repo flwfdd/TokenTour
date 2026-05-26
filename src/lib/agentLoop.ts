@@ -10,6 +10,8 @@ import { snapshotKv, diffPrefix } from "./kvSim";
 export interface RunLoopArgs {
   provider: ChatProvider;
   baseUrl: string;
+  /** Forwarded to providers; routes the upstream request through `/api/proxy`. */
+  routeThroughProxy?: boolean;
   apiKey: string;
   model: string;
   arch: ModelArch;
@@ -34,6 +36,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
   const {
     provider,
     baseUrl,
+    routeThroughProxy,
     apiKey,
     model,
     arch,
@@ -129,6 +132,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
     const { content, toolCalls, finishReason } = await provider.stream(
       {
         baseUrl,
+        routeThroughProxy,
         apiKey,
         model,
         messages: workingMessages,

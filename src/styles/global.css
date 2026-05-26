@@ -18,7 +18,7 @@
   --color-role-tool: oklch(0.8 0.15 60);
 
   --color-kv-reused: oklch(0.5 0.12 240);
-  --color-kv-prefill: oklch(0.78 0.13 230);
+  --color-kv-prefill: oklch(0.7 0.2 25);
   --color-kv-decode: oklch(0.78 0.16 50);
 
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;

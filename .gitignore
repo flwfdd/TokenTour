@@ -10,6 +10,9 @@ dist
 .vercel
 .netlify
 .cache
+# ─── Cloudflare Wrangler ─────────────────────────────────────────────────
+.wrangler
+.dev.vars
 
 # ─── Editor / OS ─────────────────────────────────────────────────────────
 .DS_Store

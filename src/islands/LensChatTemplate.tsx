@@ -101,7 +101,6 @@ export default function LensChatTemplate() {
       paneId="template"
       subtitle={
         <span>
-          {FAMILY_LABEL[view.family] ?? view.family} ·{" "}
           {view.templateText.length.toLocaleString()} 字符
           {compareTokens && (
             <>

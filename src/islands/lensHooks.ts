@@ -3,7 +3,12 @@ import { useConversation, buildOutgoingMessages, getActiveTools } from "~/store"
 import type { TimelineStep, Message, TokenInfo } from "~/lib/types";
 import { renderChatTemplate } from "~/lib/template";
 import { computeSpans } from "~/lib/spans";
-import { tokenize, type SegmentSpan } from "~/lib/tokenizer";
+import {
+  tokenize,
+  resolveTokenizer,
+  defaultTokenizerKey,
+  type SegmentSpan,
+} from "~/lib/tokenizer";
 import { getModel } from "~/lib/modelRegistry";
 import { snapshotKv, makeSnapshot, diffPrefix } from "~/lib/kvSim";
 import type { KvSnapshot } from "~/lib/kvSim";
@@ -336,6 +341,18 @@ export function useLensView(): LensView {
       };
     }
 
+    // Defer baseline seeding while the *requested* tokenizer hasn't
+    // resolved yet. `resolveTokenizer` falls back to harmony when an HF
+    // tokenizer is missing/loading; seeding with those fallback tokens
+    // would make `reusedPrefix` flash to 0 the moment the real HF
+    // tokenizer arrives (the diff against the brand-new HF tokens finds
+    // no matching prefix). Wait until the resolved key actually matches
+    // what the user asked for.
+    const requestedTokKey = state.tokenizerKey ?? defaultTokenizerKey(family);
+    const resolvedTokKey = resolveTokenizer(family, state.tokenizerKey).key;
+    const tokMismatch = resolvedTokKey !== requestedTokKey;
+    const seedToCommit = tokMismatch ? null : baselineSeed;
+
     return {
       messages,
       templateText,
@@ -349,7 +366,7 @@ export function useLensView(): LensView {
       addGenerationPrompt,
       spans,
       precomputedSnapshot: synthSnapshot,
-      __baselineSeed: baselineSeed,
+      __baselineSeed: seedToCommit,
     };
   }, [
     state.steps,

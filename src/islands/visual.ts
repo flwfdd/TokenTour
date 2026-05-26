@@ -1,4 +1,4 @@
-import type { TokenSegment, Role } from "~/lib/types";
+import type { TokenSegment, Role, Message, TokenInfo } from "~/lib/types";
 
 /** Shared color tokens used across all 4 panes for visual linkage. */
 export const SEG_LABEL: Record<TokenSegment, string> = {
@@ -40,6 +40,36 @@ export function segDotStyle(seg: TokenSegment): React.CSSProperties {
 
 export function roleOfSegment(seg: TokenSegment): Role | null {
   if (seg === "system" || seg === "user" || seg === "assistant" || seg === "tool") return seg;
+  return null;
+}
+
+/**
+ * Resolve the "effective" hover-role for legend / role-chip highlighting:
+ *   1. explicit `hoverRole` wins (e.g. user clicked a chip);
+ *   2. otherwise, the hovered token's segment lights up the matching chip;
+ *   3. otherwise, fall back to the hovered message's role.
+ *
+ * Without this, hovering a user-content token (which only writes
+ * `hoverMessageId`, not `hoverRole`) leaves every chip dim except
+ * `tools_schema` (the one segment that *does* write `hoverRole` because it
+ * has no `messageId`).
+ */
+export function deriveHoverRole(args: {
+  hoverRole: string | null;
+  hoverTokenIndex: number | null;
+  hoverMessageId: string | null;
+  tokens: TokenInfo[];
+  messages: Message[];
+}): string | null {
+  const { hoverRole, hoverTokenIndex, hoverMessageId, tokens, messages } = args;
+  if (hoverRole != null) return hoverRole;
+  if (hoverTokenIndex != null && hoverTokenIndex < tokens.length) {
+    return tokens[hoverTokenIndex]!.segment;
+  }
+  if (hoverMessageId != null) {
+    const m = messages.find((x) => x.id === hoverMessageId);
+    if (m) return m.role;
+  }
   return null;
 }
 

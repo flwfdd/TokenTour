@@ -1,6 +1,7 @@
 import type { ChatProvider, ChatRequest, DeltaEvent } from "./types";
 import type { ToolCall } from "../types";
 import { nanoid } from "nanoid";
+import { chatFetch } from "./proxyFetch";
 
 interface AccTool {
   id: string;
@@ -45,15 +46,19 @@ export const openAiProvider: ChatProvider = {
         : {}),
     };
 
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${req.apiKey}`,
+    const resp = await chatFetch(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${req.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: req.signal,
       },
-      body: JSON.stringify(body),
-      signal: req.signal,
-    });
+      !!req.routeThroughProxy,
+    );
     if (!resp.ok || !resp.body) {
       const txt = await resp.text().catch(() => "");
       const msg = `HTTP ${resp.status}: ${txt.slice(0, 400)}`;

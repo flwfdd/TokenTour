@@ -14,18 +14,9 @@ import {
 } from "~/lib/tokenizer";
 import { getTemplateBundle } from "~/lib/chatTemplates";
 import { useTokenizerLoadedVersion } from "./useTokenizerLoad";
-import type { TokenInfo, TokenSegment } from "~/lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR, matchesHover, segDotStyle, withinMessageFraction } from "./visual";
-
-const SEG_ORDER: TokenSegment[] = [
-  "system",
-  "tools_schema",
-  "user",
-  "assistant",
-  "tool",
-  "control",
-  "generation",
-];
+import type { TokenInfo } from "~/lib/types";
+import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover, withinMessageFraction } from "./visual";
+import RoleLegend, { countBySegment } from "./RoleLegend";
 
 const TOK_LABEL_SHORT: Record<string, string> = {
   cl100k: "GPT-4",
@@ -67,6 +58,20 @@ export default function LensTokens() {
   useTokenizerLoadedVersion(compareKey, view.family);
 
   const stats = useMemo(() => countBySegment(view.tokens), [view.tokens]);
+  // Effective hover role — see `deriveHoverRole`. Without this, hovering a
+  // user/assistant/tool token would leave every legend chip dim because the
+  // store clears `hoverRole` whenever it has a concrete `hoverMessageId`.
+  const effectiveHoverRole = useMemo(
+    () =>
+      deriveHoverRole({
+        hoverRole,
+        hoverTokenIndex,
+        hoverMessageId,
+        tokens: view.tokens,
+        messages: view.messages,
+      }),
+    [hoverRole, hoverTokenIndex, hoverMessageId, view.tokens, view.messages],
+  );
   const activeTokenizer = resolveTokenizer(view.family, tokenizerKey);
   // For "auto" (tokenizerKey === null), the resolved tokenizer can be either
   // o200k (immediate) or the family's matched HF (pending while loading).
@@ -117,15 +122,13 @@ export default function LensTokens() {
 
   const subtitle = (
     <span>
-      {TOK_LABEL_SHORT[activeTokenizer.key] ?? activeTokenizer.key}
-      {tokIsHfPending ? " (加载中…)" : ""} · 词表{" "}
+      {tokIsHfPending ? " (加载中…) · " : ""} 词表{" "}
       {activeTokenizer.vocabSize.toLocaleString()}
       {compareTokens && compareTokenizer && (
         <>
           {" "}vs <span style={{ color: "var(--color-accent)" }}>
-            {TOK_LABEL_SHORT[compareTokenizer.key] ?? compareTokenizer.key}
-            {compareIsHfPending ? " (加载中…)" : ""}{" "}
-            · 词表 {compareTokenizer.vocabSize.toLocaleString()}
+            {compareIsHfPending ? " (加载中…) · " : ""}{" "}
+            {compareTokenizer.vocabSize.toLocaleString()}
           </span>
         </>
       )}
@@ -173,37 +176,11 @@ export default function LensTokens() {
         );
       })()}
       legend={
-        <div
-          className="flex flex-wrap items-center gap-1"
-          onMouseLeave={() => setHoverRole(null)}
-        >
-          {SEG_ORDER.map((seg) => {
-            const active = hoverRole === seg;
-            return (
-              <button
-                key={seg}
-                onMouseEnter={() => setHoverRole(seg)}
-                onClick={() => setHoverRole(active ? null : seg)}
-                className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 transition"
-                style={{
-                  borderColor: active
-                    ? `var(${SEG_ROLE_VAR[seg]})`
-                    : "var(--color-border)",
-                  backgroundColor: active
-                    ? `color-mix(in oklch, var(${SEG_ROLE_VAR[seg]}) 20%, transparent)`
-                    : undefined,
-                  color: active ? `var(${SEG_ROLE_VAR[seg]})` : undefined,
-                }}
-              >
-                <span
-                  className="inline-block h-2 w-2 rounded-sm"
-                  style={segDotStyle(seg)}
-                />
-                {SEG_LABEL[seg]} · {stats[seg]}
-              </button>
-            );
-          })}
-        </div>
+        <RoleLegend
+          counts={stats}
+          hoverRole={effectiveHoverRole}
+          onHoverChange={setHoverRole}
+        />
       }
     >
       <div
@@ -426,16 +403,3 @@ function TokenDetail({ t }: { t: TokenInfo }) {
   );
 }
 
-function countBySegment(tokens: TokenInfo[]): Record<TokenSegment, number> {
-  const c: Record<TokenSegment, number> = {
-    system: 0,
-    tools_schema: 0,
-    user: 0,
-    assistant: 0,
-    tool: 0,
-    control: 0,
-    generation: 0,
-  };
-  for (const t of tokens) c[t.segment] = (c[t.segment] ?? 0) + 1;
-  return c;
-}

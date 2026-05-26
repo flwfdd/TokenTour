@@ -1,6 +1,7 @@
 import type { ChatProvider, ChatRequest, DeltaEvent } from "./types";
 import type { ToolCall, Message } from "../types";
 import { nanoid } from "nanoid";
+import { chatFetch } from "./proxyFetch";
 
 interface AccBlock {
   type: "text" | "tool_use";
@@ -64,17 +65,21 @@ export const anthropicProvider: ChatProvider = {
         : {}),
     };
 
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": req.apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
+    const resp = await chatFetch(
+      url,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": req.apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify(body),
+        signal: req.signal,
       },
-      body: JSON.stringify(body),
-      signal: req.signal,
-    });
+      !!req.routeThroughProxy,
+    );
     if (!resp.ok || !resp.body) {
       const txt = await resp.text().catch(() => "");
       const msg = `HTTP ${resp.status}: ${txt.slice(0, 400)}`;

@@ -12,6 +12,7 @@ import { readSnapshotFromUrl, snapshotToUrl } from "~/lib/snapshot";
 export default function App() {
   const [hydrated, setHydrated] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function App() {
   if (!hydrated) {
     return (
       <div className="grid h-screen place-items-center text-(--color-muted)">
-        Loading LLMVis...
+        Loading TokenTour...
       </div>
     );
   }
@@ -58,12 +59,19 @@ export default function App() {
       <header className="hairline border-l-0 border-r-0 border-t-0 flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-2">
           <div className="h-6 w-6 rounded-sm bg-(--color-accent)" />
-          <div className="text-sm font-semibold">LLMVis</div>
+          <div className="text-sm font-semibold">TokenTour</div>
           <div className="hidden text-xs text-(--color-muted) md:block">
             从 Agentic Context 到 KV Cache · 交互式可视化教程
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            className="btn"
+            onClick={() => setHelpOpen(true)}
+            title="面板说明 + 玩法建议"
+          >
+            帮助
+          </button>
           <button
             className="btn"
             onClick={handleShare}
@@ -90,7 +98,7 @@ export default function App() {
 
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <MessagesJsonModal />
-      <Intro />
+      <Intro open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

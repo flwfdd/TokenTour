@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { nanoid } from "nanoid";
 
 import type { Message, ToolSpec, TimelineStep, ProviderConfig, TokenInfo } from "~/lib/types";
 import { DEFAULT_MODEL_KEY, MODEL_REGISTRY, getModel } from "~/lib/modelRegistry";
@@ -129,17 +128,55 @@ const defaultProvider: ProviderConfig = {
 const defaultSystemPrompt =
   "You are a concise, friendly assistant. When asked computations or facts, prefer calling the available tools instead of guessing.";
 
-const seedMessage: Message = {
-  id: nanoid(8),
-  role: "user",
-  content: "12 * (3 + 4) 等于多少？再告诉我现在 UTC 时间。",
-};
+// Full demo conversation as the seed so a first-time visitor immediately
+// sees how a real agent loop (user → tool-calling assistant → tool result →
+// assistant synthesis) lays out across the chat-template / tokens / KV
+// panels. IDs are stable so localStorage rehydration keeps refs consistent
+// across reloads.
+const seedToolCallId = "get_weather:seed";
+const seedMessages: Message[] = [
+  {
+    id: "seed_u1",
+    role: "user",
+    content: "今天上海天气怎么样？",
+  },
+  {
+    id: "seed_a1",
+    role: "assistant",
+    content: "",
+    tool_calls: [
+      {
+        id: seedToolCallId,
+        name: "get_weather",
+        arguments: { city: "Shanghai" },
+      },
+    ],
+  },
+  {
+    id: "seed_t1",
+    role: "tool",
+    content: JSON.stringify({
+      city: "Shanghai",
+      condition: "snow",
+      temperature: 22,
+      unit: "celsius",
+      source: "mock",
+    }),
+    tool_call_id: seedToolCallId,
+    name: "get_weather",
+  },
+  {
+    id: "seed_a2",
+    role: "assistant",
+    content: "上海今天**下雪**，气温约 22°C（来自 mock 工具）。需要我换成华氏度或查别的城市吗？",
+  },
+];
 
 export const useConversation = create<ConversationState>()(
   persist(
     (set) => ({
       systemPrompt: defaultSystemPrompt,
-      messages: [seedMessage],
+      messages: seedMessages,
       enabledTools: BUILTIN_TOOLS.map((t) => t.spec.name),
       modelKey: DEFAULT_MODEL_KEY,
 
@@ -289,8 +326,8 @@ export const useConversation = create<ConversationState>()(
       setProvider: (p) => set((s) => ({ provider: { ...s.provider, ...p } })),
     }),
     {
-      name: "llmvis-conversation",
-      version: 3,
+      name: "tokentour-conversation",
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         systemPrompt: s.systemPrompt,
@@ -331,6 +368,22 @@ export const useConversation = create<ConversationState>()(
           if (typeof k === "string" && !validBuiltins.has(k) && !validHf.has(k)) {
             persisted.tokenizerKey = null;
           }
+        }
+        if (fromVersion < 4 && persisted && typeof persisted === "object") {
+          // The seed conversation was upgraded from a single user msg to a
+          // full user → assistant(tool_call) → tool → assistant flow so the
+          // visualization is meaningful on first load. If the user is still
+          // sitting on the old single-message seed (a strong signal they
+          // never sent anything), replace it; otherwise leave their work
+          // alone.
+          const msgs = persisted.messages;
+          const onlyOldSeed =
+            Array.isArray(msgs) &&
+            msgs.length === 1 &&
+            msgs[0]?.role === "user" &&
+            typeof msgs[0]?.content === "string" &&
+            msgs[0].content.includes("12 * (3 + 4)");
+          if (onlyOldSeed) persisted.messages = seedMessages;
         }
         return persisted;
       },

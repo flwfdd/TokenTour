@@ -1,20 +1,21 @@
 {
-  "name": "llmvis",
+  "name": "tokentour",
   "type": "module",
   "version": "0.1.0",
-  "description": "Interactive visualization tutorial: from Agentic Context to KV Cache",
+  "description": "TokenTour — interactive visualization from Agentic Context to KV Cache",
   "packageManager": "pnpm@10.28.1",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview",
+    "preview": "wrangler dev",
+    "deploy": "astro build && wrangler deploy",
     "astro": "astro",
     "typecheck": "tsc --noEmit",
     "fetch-tokenizers": "node scripts/fetch-tokenizers.mjs",
     "sync-chat-templates": "node scripts/sync-chat-templates.mjs"
   },
   "dependencies": {
-    "@astrojs/node": "^10.1.1",
+    "@astrojs/cloudflare": "^13.5.4",
     "@astrojs/react": "^5.0.5",
     "@huggingface/jinja": "^0.5.9",
     "@huggingface/transformers": "^4.2.0",
@@ -32,7 +33,8 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "tsx": "^4.20.7",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "wrangler": "^4.94.0"
   },
   "pnpm": {
     "overrides": {

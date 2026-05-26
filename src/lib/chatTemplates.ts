@@ -110,24 +110,30 @@ export const TEMPLATE_BUNDLES: Record<string, TemplateBundle> = {
     //   1. It renders the tools schema (`# Tools\n\n…`) inline so we don't
     //      have to inject it from `template.ts`.
     //   2. It glues the assistant trigger onto each user message:
-    //      `<｜User｜>{content}<｜Assistant｜>`. As a side effect, every
-    //      assistant message that immediately follows a user starts WITHOUT
-    //      its own `<｜Assistant｜>` opener. It also resets `ns.is_first` on
-    //      each user message so the sticky-flag bug is gone.
+    //      `<｜User｜>{content}<｜Assistant｜>`. So an assistant message
+    //      immediately after a user starts with that already-rendered
+    //      `<｜Assistant｜>` — we attribute that opener to the ASSISTANT
+    //      span (it's a header, not part of user content). Likewise the
+    //      `<｜tool▁outputs▁end｜>` that the template emits before an
+    //      assistant-after-tool body is the CLOSER of the previous tool
+    //      outputs block, so we attribute it to the last TOOL span.
     //
-    // Opening signatures with these semantics:
+    // Opening signatures (boundary is inclusive of the matched signature
+    // unless the pattern is a zero-width lookbehind):
     //
     //   system        → no opener (concatenated after BOS).
-    //   user          → match `<｜User｜>…<｜Assistant｜>` lazily so the user
-    //                   span includes the appended trigger and the next
-    //                   message starts cleanly after it.
+    //   user          → `<｜User｜>` (content + appended `<｜Assistant｜>`
+    //                   are *not* part of user; the assistant span below
+    //                   carves the `<｜Assistant｜>` out as its opener).
+    //   assistant, prev=user
+    //                 → `<｜Assistant｜>` (the trigger glued onto user).
     //   assistant, prev=tool
-    //                 → `<｜tool▁outputs▁end｜>` (the tool-outputs closer
-    //                   doubles as this assistant's header for both content
-    //                   and tool_calls variants).
-    //   assistant, otherwise
-    //                 → null (user's `<｜Assistant｜>` already ate the
-    //                   opener; assistant span starts at cursor).
+    //                 → `(?<=<｜tool▁outputs▁end｜>)` — zero-width
+    //                   lookbehind so the `<｜tool▁outputs▁end｜>` itself
+    //                   stays inside the preceding tool span (it's the
+    //                   closer of tool outputs), while the assistant span
+    //                   starts at the position immediately after it.
+    //   assistant, otherwise (e.g. first message) → null fallback.
     //   tool, FIRST in a sequence
     //                 → `<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>`.
     //   tool, subsequent
@@ -135,9 +141,10 @@ export const TEMPLATE_BUNDLES: Record<string, TemplateBundle> = {
     messageOpening: (msg, msgIndex, messages) => {
       if (msg.role === "system") return null;
       const prev = messages[msgIndex - 1];
-      if (msg.role === "user") return "<｜User｜>[\\s\\S]*?<｜Assistant｜>";
+      if (msg.role === "user") return "<｜User｜>";
       if (msg.role === "assistant") {
-        if (prev?.role === "tool") return "<｜tool▁outputs▁end｜>";
+        if (prev?.role === "tool") return "(?<=<｜tool▁outputs▁end｜>)";
+        if (prev?.role === "user") return "<｜Assistant｜>";
         return null;
       }
       if (msg.role === "tool") {

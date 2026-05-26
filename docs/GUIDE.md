@@ -1,4 +1,4 @@
-# LLMVis 用户指南
+# TokenTour 用户指南
 
 把「你跟 Agent 说的一句话」一路拆解到 GPU 上的 KV Cache —— messages、chat template、tokens、context 分布、KV cache 状态一屏看完。
 
@@ -84,20 +84,20 @@
 ### 顶部 6 个统计卡
 | 卡片 | 含义 |
 | --- | --- |
-| 总 tokens | 当前上下文总 token 数（含 decode） |
-| **复用 prefix** | 与缓存基线匹配的前缀长度（蓝色） |
-| **本轮 prefill** | 这一轮新送进去 prefill 的部分（橙色） |
-| **decode 追加** | 这一轮模型 decode 出来的部分（绿色） |
+| 总 tokens | 当前上下文总 token 数（含输出） |
+| **缓存命中输入**（蓝） | 与缓存基线匹配的前缀长度 —— 本轮 prefill 命中 prefix cache、无需重算 |
+| **缓存未命中输入**（红） | 与基线分叉之后的输入部分 —— 本轮必须重新 prefill |
+| **输出**（橙） | 模型本轮 decode 自回归生成的部分 |
 | KV 内存 | 三者相加在当前架构下的 KV 字节占用 |
 | 每 token KV | `L × KV_H × headDim × dtype × 2`（K+V） |
 
 ### 中段三条
 1. **上下文窗口占用条** —— 总长度对当前 ctx 上限的百分比，过 80% 转橙，过 100% 转红。
 2. **角色分布条** —— 按 token 序列顺序聚合相邻同角色 token 组成色块。
-3. **KV cache 状态条** —— 每个方格 = 1 个 token（超 512 自动桶化），颜色 = `reused` / `prefill` / `decode` / `pending`。
+3. **KV cache 状态条** —— 每个方格 = 1 个 token（超 512 自动桶化），颜色 = 命中 / 未命中 / 输出 / 未占用。
 
 ### 底部 DualLegend
-- 左边 **KV 状态** chips：reused / prefill / decode + 数量。点击 = pin 该状态（再点取消），其它面板会过滤显示。
+- 左边 **KV 状态** chips：命中输入 / 未命中输入 / 输出 + 数量。点击 = pin 该状态（再点取消），其它面板会过滤显示。
 - 右边 **角色** chips：system / tools_schema / control / user / assistant / tool / generation + 数量。
 
 ### 右上控件
@@ -118,7 +118,7 @@
 | 模板某段字符 | 对应 token 高亮、消息卡片高亮、KV 状态色块高亮 |
 | token chip | 对应字符段、消息、KV 格全部高亮；底部信息条显示该 token 详细信息 |
 | KV cell | 反推回 token / 字符 / 消息 |
-| **角色 chip** | 所有该角色的 token / 字符 / KV 格保持亮，其它变暗；**同时点亮该角色 token 涉及的所有 KV 状态 tile**（看出 user 的 token 是横跨 reused + prefill 还是只在 reused） |
+| **角色 chip** | 所有该角色的 token / 字符 / KV 格保持亮，其它变暗；**同时点亮该角色 token 涉及的所有 KV 状态 tile**（看出 user 的 token 是横跨"命中 + 未命中"还是全部命中） |
 | **KV 状态 chip** | 所有该状态的 KV 格保持亮，其它变暗 |
 
 被动滚动：hover 时**你正在看的面板不会自动滚动**，但其它面板会主动滚到对应位置；hover 在对比子面板里时，主面板 + 另一边对比面板都会跟随。
@@ -127,16 +127,16 @@
 
 ## 编辑前缀 → 看 KV 缓存如何失效
 
-LLMVis 模拟了一个真实 KV cache server 的 prefix-match 逻辑：
+TokenTour 模拟了一个真实 KV cache server 的 prefix-match 逻辑：
 
 1. **初始化**：页面打开 / 刷新 / Demo 跑完，系统把当前 messages 冻结为「server 已缓存的基线」。如果末条是 assistant，则按「**它就是刚 decode 完的**」分解：
-   - `reused` = assistant 之前的所有 token
-   - `prefill` = 这轮 gen prompt 头部（Qwen 是 `<|im_start|>assistant\n`、DeepSeek vLLM 模板因为 user 已粘上 `<｜Assistant｜>` 所以是 0）
-   - `decode` = assistant 内容 + 结束符
-2. **改动任意前缀消息**（user / system / tools）：基线不变，当前 token 序列与基线做最长公共前缀 diff —— `reused` **缩短**到分歧点，分歧之后的 token 全部归入 `prefill`，`decode` 归零。
-3. **恢复原文**：token 序列再次与基线一致，原来的 reused/prefill/decode 三段**自动复原**。
-4. **追加新消息**（如手动新建一条 user）：基线是当前的前缀 → `reused = 基线长度`，新加的部分进 `prefill`，`decode = 0`。
-5. **点 "发送" 触发真实生成**：时间线上开始出现 compose → template → tokenize → prefill → decode → final 步骤。任意点击其中一步可"穿越"回那一刻的 KV 状态；点选项之外的空白回到 live 视图。
+   - **命中输入** = assistant 之前的所有 token
+   - **未命中输入** = 这轮 gen prompt 头部（Qwen 是 `<|im_start|>assistant\n`、DeepSeek vLLM 模板因为 user 已粘上 `<｜Assistant｜>` 所以是 0）
+   - **输出** = assistant 内容 + 结束符
+2. **改动任意前缀消息**（user / system / tools）：基线不变，当前 token 序列与基线做最长公共前缀 diff —— **命中输入** **缩短**到分歧点，分歧之后的 token 全部归入 **未命中输入**，**输出** 归零。
+3. **恢复原文**：token 序列再次与基线一致，原来的"命中 / 未命中 / 输出"三段**自动复原**。
+4. **追加新消息**（如手动新建一条 user）：基线是当前的前缀 → **命中输入** = 基线长度，新加的部分进 **未命中输入**，**输出** = 0。
+5. **点 "发送" 触发真实生成**：时间线上开始出现 compose → template → tokenize → prefill → decode → final 步骤（这里仍用底层术语指代推理阶段）。任意点击其中一步可"穿越"回那一刻的 KV 状态；点选项之外的空白回到 live 视图。
 6. **切换 chat template / tokenizer**：渲染出来的 token 序列变了，旧基线无法对比 → 自动 reset，按当前状态重新冻结。
 
 ---
@@ -183,7 +183,7 @@ LLMVis 模拟了一个真实 KV cache server 的 prefix-match 逻辑：
 **Q：左边架构卡片的内存数字准吗？**
 A：shape 和总字节是按 `2 (K+V) × L × KV_H × headDim × dtype` 真实算的，跟 vLLM / Megatron 的 KV 公式一致。"激活值"本身是示意。
 
-**Q：BYOK 模式下显示的 reused 是真实命中吗？**
+**Q：BYOK 模式下显示的"命中输入"是真实命中吗？**
 A：不是。我们看不到 provider 服务端真实的 prefix cache 命中情况，**展示的是"理论可复用区域"** —— 即"如果服务端按当前 token 序列做最长前缀匹配，应该能复用多少"。
 
 **Q：为什么 DeepSeek vLLM 模板渲染出来有那么多缩进空白？**
@@ -192,5 +192,5 @@ A：那是上游官方 Jinja 模板本身的 whitespace handling，我们故意�
 **Q：Tokenizer 选 auto 是什么意思？**
 A：自动选最匹配当前 chat template 家族的分词器（Qwen → Qwen3 BPE；DeepSeek → DeepSeek-V3；GPT-OSS → harmony）。第一次切到 HF 分词器会从 `hf-mirror.com` 下载（已配置好镜像，国内网络可用）。
 
-**Q：编辑了消息但 reused 没变？**
+**Q：编辑了消息但"命中输入"没变？**
 A：检查左下角的 KV 状态条 —— 如果时间线上有 steps（也就是发送过一次），编辑会跟最近一步的 prefill 比，而不是初始基线；这是和真实 server 行为对齐的。想回到"初始基线"对比，按 **clearSteps**（点时间线区域以外、或重新刷新页面即可）。

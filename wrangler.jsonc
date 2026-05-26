@@ -1,0 +1,23 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "tokentour",
+	// `main` is intentionally omitted: @astrojs/cloudflare 13+ owns the
+	// worker bundle path (`dist/_worker.js/index.js`) and resolves it via
+	// its bundled @cloudflare/vite-plugin. Pinning it here breaks the
+	// pre-build sync step on a clean checkout because the file doesn't
+	// exist yet.
+	//
+	// Bump as needed; keep within ~30 days of deploy date so Cloudflare
+	// can pick the latest compatible runtime.
+	"compatibility_date": "2026-05-26",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist"
+	},
+	"observability": {
+		"enabled": true
+	}
+}

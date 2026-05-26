@@ -6,7 +6,8 @@ import { formatBytes, listModels } from "~/lib/modelRegistry";
 import type { CellState } from "~/lib/kvSim";
 import { cellStateAt } from "~/lib/kvSim";
 import type { TokenInfo, TokenSegment } from "~/lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR, matchesHover } from "./visual";
+import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover } from "./visual";
+import RoleLegend, { countBySegment } from "./RoleLegend";
 
 const STATE_COLOR_VAR: Record<CellState, string> = {
   reused: "--color-kv-reused",
@@ -16,21 +17,11 @@ const STATE_COLOR_VAR: Record<CellState, string> = {
 };
 
 const STATE_LABEL: Record<CellState, string> = {
-  reused: "复用 prefix",
-  prefill: "本轮 prefill",
-  decode: "decode 追加",
+  reused: "缓存命中输入",
+  prefill: "缓存未命中输入",
+  decode: "输出",
   pending: "未占用",
 };
-
-const SEG_ORDER: TokenSegment[] = [
-  "system",
-  "tools_schema",
-  "control",
-  "user",
-  "assistant",
-  "tool",
-  "generation",
-];
 
 /** Above ~ this many tokens, the KV cell grid switches from per-token to bucketed cells. */
 const MAX_KV_CELLS = 512;
@@ -127,20 +118,19 @@ export default function LensContextKv() {
     return new Set();
   }, [hoverState, hoverTokenIndex, hoverRole, hoverMessageId, snapshot, view.tokens]);
 
-  // Derived role hover: explicit hoverRole wins, otherwise the hovered token
-  // (or hovered message's role via its segment) lights up the matching chip
-  // in the role legend.
-  const derivedHoverRole: string | null = useMemo(() => {
-    if (hoverRole != null) return hoverRole;
-    if (hoverTokenIndex != null && hoverTokenIndex < view.tokens.length) {
-      return view.tokens[hoverTokenIndex]!.segment;
-    }
-    if (hoverMessageId != null) {
-      const m = view.messages.find((x) => x.id === hoverMessageId);
-      if (m) return m.role;
-    }
-    return null;
-  }, [hoverRole, hoverTokenIndex, hoverMessageId, view.tokens, view.messages]);
+  // Effective hover role for legend / role-strip highlighting; see
+  // `deriveHoverRole` for the precedence rules.
+  const derivedHoverRole: string | null = useMemo(
+    () =>
+      deriveHoverRole({
+        hoverRole,
+        hoverTokenIndex,
+        hoverMessageId,
+        tokens: view.tokens,
+        messages: view.messages,
+      }),
+    [hoverRole, hoverTokenIndex, hoverMessageId, view.tokens, view.messages],
+  );
 
   return (
     <Pane
@@ -278,24 +268,24 @@ function StatRow({
         hint={`${ctxPct.toFixed(1)}% of window`}
       />
       <Tile
-        label="复用 prefix"
+        label={STATE_LABEL.reused}
         value={snapshot.reusedPrefix.toLocaleString()}
         hint={formatBytes(perTok * snapshot.reusedPrefix)}
-        colorVar="--color-kv-reused"
+        colorVar={STATE_COLOR_VAR.reused}
         active={activeStates.has("reused")}
       />
       <Tile
-        label="本轮 prefill"
+        label={STATE_LABEL.prefill}
         value={snapshot.prefillNew.toLocaleString()}
         hint={formatBytes(perTok * snapshot.prefillNew)}
-        colorVar="--color-kv-prefill"
+        colorVar={STATE_COLOR_VAR.prefill}
         active={activeStates.has("prefill")}
       />
       <Tile
-        label="decode 追加"
+        label={STATE_LABEL.decode}
         value={snapshot.decodeAppended.toLocaleString()}
         hint={formatBytes(perTok * snapshot.decodeAppended)}
-        colorVar="--color-kv-decode"
+        colorVar={STATE_COLOR_VAR.decode}
         active={activeStates.has("decode")}
       />
       <Tile
@@ -595,55 +585,19 @@ function DualLegend({
         })}
       </div>
       <span className="text-(--color-border)">│</span>
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="text-(--color-muted)">角色:</span>
-        {SEG_ORDER.map((seg) => {
-          const n = segCounts[seg];
-          if (!n) return null;
-          const active = hoverRole === seg;
-          return (
-            <button
-              key={seg}
-              onMouseEnter={() => {
-                setHoverRole(seg);
-                setHoverState(null);
-              }}
-              onClick={() => setHoverRole(active ? null : seg)}
-              className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 transition"
-              style={{
-                borderColor: active ? `var(${SEG_ROLE_VAR[seg]})` : "var(--color-border)",
-                backgroundColor: active
-                  ? `color-mix(in oklch, var(${SEG_ROLE_VAR[seg]}) 20%, transparent)`
-                  : undefined,
-                color: active ? `var(${SEG_ROLE_VAR[seg]})` : undefined,
-              }}
-            >
-              <span
-                className="inline-block h-2 w-2 rounded-sm"
-                style={{ backgroundColor: `var(${SEG_ROLE_VAR[seg]})` }}
-              />
-              {SEG_LABEL[seg]} · {n}
-            </button>
-          );
-        })}
-      </div>
+      <RoleLegend
+        counts={segCounts}
+        hoverRole={hoverRole}
+        onHoverChange={(seg) => {
+          setHoverRole(seg);
+          if (seg != null) setHoverState(null);
+        }}
+        label="角色:"
+      />
     </div>
   );
 }
 
-function countBySegment(tokens: TokenInfo[]): Record<TokenSegment, number> {
-  const c: Record<TokenSegment, number> = {
-    system: 0,
-    tools_schema: 0,
-    user: 0,
-    assistant: 0,
-    tool: 0,
-    control: 0,
-    generation: 0,
-  };
-  for (const t of tokens) c[t.segment] = (c[t.segment] ?? 0) + 1;
-  return c;
-}
 
 function buildRoleSegments(tokens: TokenInfo[], total: number): RoleSegment[] {
   if (total === 0) return [];

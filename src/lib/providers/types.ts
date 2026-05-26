@@ -9,6 +9,12 @@ export interface ChatRequest {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /**
+   * When true, providers route the request through `/api/proxy` (our
+   * server-side fetch forwarder) instead of hitting the upstream URL
+   * directly. Useful for CORS-restricted providers in a browser.
+   */
+  routeThroughProxy?: boolean;
 }
 
 export interface DeltaEvent {

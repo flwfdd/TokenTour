@@ -89,11 +89,11 @@ export default function AgentChat() {
           state.provider.id === "anthropic" ? "anthropic" : "openai-compat"
         ]!;
       const outgoing = buildOutgoingMessages({ ...state, messages: msgs });
-      const baseUrl = state.provider.useProxy ? `/api/proxy` : state.provider.baseUrl;
       const apiKey = state.provider.apiKey;
       await runAgentLoop({
         provider,
-        baseUrl,
+        baseUrl: state.provider.baseUrl,
+        routeThroughProxy: state.provider.useProxy,
         apiKey,
         model: state.provider.model,
         arch,
