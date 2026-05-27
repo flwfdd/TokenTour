@@ -26,6 +26,25 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     optimizeDeps: {
+      // Pre-bundle deps that would otherwise be discovered one-by-one on the
+      // first SSR request. With the Cloudflare adapter's workerd runtime,
+      // every late discovery triggers a full reload while in-flight module
+      // URLs still point at the previous chunk hashes — surfacing as
+      // `chunk-XXXX.js does not exist` and `Invalid hook call` (two React
+      // copies across the optimizer shuffle). Listing them eagerly makes the
+      // optimizer settle before the first request and removes the race.
+      include: [
+        "react",
+        "react/jsx-runtime",
+        "react-dom",
+        "react-dom/client",
+        "nanoid",
+        "zustand",
+        "zustand/middleware",
+        "@huggingface/jinja",
+        "gpt-tokenizer/encoding/cl100k_base",
+        "gpt-tokenizer/encoding/o200k_harmony",
+      ],
       // Pulled in by the client-side tokenizer loader; keep it out of the
       // dev pre-bundle to avoid bundling its heavy ONNX backend.
       exclude: ["@huggingface/transformers"],

@@ -1,4 +1,4 @@
-import type { TokenInfo, TokenSegment } from "~/lib/types";
+import type { TokenInfo, TokenSegment } from "./lib/types";
 import { SEG_LABEL, SEG_ROLE_VAR } from "./visual";
 
 /**

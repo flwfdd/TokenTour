@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import Pane from "./Pane";
 import { useKvSnapshot, useLensView } from "./lensHooks";
-import { useConversation } from "~/store";
-import { formatBytes, listModels } from "~/lib/modelRegistry";
-import type { CellState } from "~/lib/kvSim";
-import { cellStateAt } from "~/lib/kvSim";
-import type { TokenInfo, TokenSegment } from "~/lib/types";
+import { useConversation } from "./store";
+import { formatBytes, listModels } from "./lib/modelRegistry";
+import type { CellState } from "./lib/kvSim";
+import { cellStateAt } from "./lib/kvSim";
+import type { TokenInfo, TokenSegment } from "./lib/types";
 import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover } from "./visual";
 import RoleLegend, { countBySegment } from "./RoleLegend";
 

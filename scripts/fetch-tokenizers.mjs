@@ -12,7 +12,7 @@
  *     pnpm fetch-tokenizers                 # custom mirror
  *
  * Only run this once (or after editing HF_TOKENIZER_SPECS in
- * `src/lib/tokenizer.ts`). Total payload is ~25 MB.
+ * `topics/chat2token/app/lib/tokenizer.ts`). Total payload is ~25 MB.
  */
 import { mkdir, writeFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -22,7 +22,7 @@ const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const OUT_DIR = join(ROOT, "public", "tokenizers");
 const ENDPOINT = (process.env.HF_ENDPOINT || "https://hf-mirror.com").replace(/\/$/, "");
 
-// Mirror of HF_TOKENIZER_SPECS in src/lib/tokenizer.ts — kept in sync manually
+// Mirror of HF_TOKENIZER_SPECS in topics/chat2token/app/lib/tokenizer.ts — kept in sync manually
 // because importing the TS module from a plain Node script is messy.
 const SPECS = [
   { key: "qwen3", hfId: "Qwen/Qwen3-0.6B" },

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useConversation, getActiveTools, buildOutgoingMessages } from "~/store";
-import { buildOpenAiRequestBody } from "~/lib/providers/serialize";
+import { useConversation, getActiveTools, buildOutgoingMessages } from "./store";
+import { buildOpenAiRequestBody } from "./lib/providers/serialize";
 
 export default function MessagesJsonModal() {
   const state = useConversation();

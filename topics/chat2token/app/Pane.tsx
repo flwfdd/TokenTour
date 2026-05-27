@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useConversation } from "~/store";
+import { useConversation } from "./store";
 
 interface PaneProps {
   title: string;

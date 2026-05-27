@@ -2,7 +2,7 @@ import { forwardRef, useMemo, useRef, useState } from "react";
 import Pane from "./Pane";
 import { useLensView } from "./lensHooks";
 import { useScrollMatchIntoView } from "./useScrollMatch";
-import { useConversation } from "~/store";
+import { useConversation } from "./store";
 import {
   resolveTokenizer,
   isHfPending,
@@ -10,9 +10,9 @@ import {
   listHfTokenizers,
   defaultTokenizerKey,
   tokenize,
-} from "~/lib/tokenizer";
+} from "./lib/tokenizer";
 import { useTokenizerLoadedVersions } from "./useTokenizerLoad";
-import type { TokenInfo } from "~/lib/types";
+import type { TokenInfo } from "./lib/types";
 import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover, withinMessageFraction } from "./visual";
 import RoleLegend, { countBySegment } from "./RoleLegend";
 

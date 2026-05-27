@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
 
-import { useConversation, getActiveTools, buildOutgoingMessages } from "~/store";
-import { getModel } from "~/lib/modelRegistry";
-import { PROVIDERS } from "~/lib/providers";
-import { runAgentLoop } from "~/lib/agentLoop";
-import { BUILTIN_TOOLS } from "~/lib/tools";
-import { runDemo } from "~/lib/demo";
-import { stripSystemSentinel } from "~/lib/messageUtils";
+import { useConversation, getActiveTools, buildOutgoingMessages } from "./store";
+import { getModel } from "./lib/modelRegistry";
+import { PROVIDERS } from "./lib/providers";
+import { runAgentLoop } from "./lib/agentLoop";
+import { BUILTIN_TOOLS } from "./lib/tools";
+import { runDemo } from "./lib/demo";
+import { stripSystemSentinel } from "./lib/messageUtils";
 import { useScrollMatchIntoView } from "./useScrollMatch";
 import { SEG_ROLE_VAR, roleColorVar } from "./visual";
-import type { Message } from "~/lib/types";
+import type { Message } from "./lib/types";
 
 export default function AgentChat() {
   const state = useConversation();

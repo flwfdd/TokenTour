@@ -1,4 +1,4 @@
-import type { TokenSegment, Message, TokenInfo } from "~/lib/types";
+import type { TokenSegment, Message, TokenInfo } from "./lib/types";
 
 /** Shared color tokens used across all 4 panes for visual linkage. */
 export const SEG_LABEL: Record<TokenSegment, string> = {

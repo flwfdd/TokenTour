@@ -59,7 +59,7 @@
 | **+ 对比** 按钮 | 旁边并排另一家的渲染结果。两侧滚动联动 —— hover 其中一边，另一边自动滚到同一条消息附近，方便你看「同一组 messages 在不同家模板下的 prefix 长度差多少」。 |
 | 字符高亮 | 不同角色用不同色带（system / user / assistant / tool / tools_schema / control）。Hover 某段字符会触发跨面板高亮。 |
 
-> 模板源自上游官方 Jinja 文件，不做任何二次魔改。详见 `src/lib/chatTemplates/*.jinja`，可用 `pnpm sync-chat-templates` 重新拉取。DeepSeek 用的是 vLLM 的 `tool_chat_template_deepseekv3.jinja`，自带 `# Tools` 渲染。
+> 模板源自上游官方 Jinja 文件，不做任何二次魔改。详见 `topics/chat2token/app/lib/chatTemplates/*.jinja`，可用 `pnpm sync-chat-templates` 重新拉取。DeepSeek 用的是 vLLM 的 `tool_chat_template_deepseekv3.jinja`，自带 `# Tools` 渲染。
 
 ---
 

@@ -6,14 +6,14 @@
  * frozen baseline", "first-ever render — derive baseline") read top-to-
  * bottom instead of being a giant ladder of mutated locals.
  */
-import type { TimelineStep, Message, TokenInfo, ModelArch, ToolSpec } from "~/lib/types";
-import type { ConversationState } from "~/store";
-import { buildOutgoingMessages, getActiveTools } from "~/store";
-import { renderAndTokenize } from "~/lib/pipeline";
-import { computeSpans } from "~/lib/spans";
-import { defaultTokenizerKey, resolveTokenizer, type SegmentSpan } from "~/lib/tokenizer";
-import { snapshotKv, makeSnapshot, diffPrefix, type KvSnapshot } from "~/lib/kvSim";
-import { shouldAddGenerationPrompt } from "~/lib/messageUtils";
+import type { TimelineStep, Message, TokenInfo, ModelArch, ToolSpec } from "./lib/types";
+import type { ConversationState } from "./store";
+import { buildOutgoingMessages, getActiveTools } from "./store";
+import { renderAndTokenize } from "./lib/pipeline";
+import { computeSpans } from "./lib/spans";
+import { defaultTokenizerKey, resolveTokenizer, type SegmentSpan } from "./lib/tokenizer";
+import { snapshotKv, makeSnapshot, diffPrefix, type KvSnapshot } from "./lib/kvSim";
+import { shouldAddGenerationPrompt } from "./lib/messageUtils";
 
 export interface LensView {
   messages: Message[];

@@ -59,49 +59,59 @@ pnpm build && pnpm preview   # = wrangler dev
 - Chat template：`@huggingface/jinja` + 三家原始 Jinja 文件（qwen3 / deepseek_v3 / gpt_oss）从 `?raw` 加载
 - Tokenizer：内置 `gpt-tokenizer`（cl100k / o200k_harmony）+ `@huggingface/transformers` 加载 Qwen3 / DeepSeek-V3 真实 BPE
 - 流式：原生 fetch + SSE 解析；Anthropic 走 `content_block_delta` 事件流
-- KV Cache：基于 `src/lib/modelRegistry.ts` 真实推算 shape / memory；prefix 复用通过对**冻结基线** vs 当前 token 序列做最长公共前缀 diff 得到，因此编辑前缀消息会让 `reusedPrefix` 直观地缩短再恢复
+- KV Cache：基于 `topics/chat2token/app/lib/modelRegistry.ts` 真实推算 shape / memory；prefix 复用通过对**冻结基线** vs 当前 token 序列做最长公共前缀 diff 得到，因此编辑前缀消息会让 `reusedPrefix` 直观地缩短再恢复
 
 ## 项目结构
 
-```
-src/
-├── lib/                  纯逻辑层（无 React）
-│   ├── types.ts          全局类型
-│   ├── modelRegistry.ts  10 个模型架构参数 + KV 内存计算
-│   ├── chatTemplates.ts  Jinja 模板 bundle 元数据（每家的 specialTokens / messageOpening）
-│   ├── chatTemplates/    各家原始 Jinja 文件（`?raw` 加载；用 `pnpm sync-chat-templates` 同步上游）
-│   │   ├── qwen3.jinja           ← Qwen/Qwen3-8B tokenizer_config.json
-│   │   ├── deepseek_v3.jinja     ← vLLM examples/tool_chat_template_deepseekv3.jinja
-│   │   └── gpt_oss.jinja         ← openai/gpt-oss-20b chat_template.jinja
-│   ├── template.ts       渲染 + 特殊 token 切片
-│   ├── spans.ts          基于每家 messageOpening 信号匹配的 char-range 归属
-│   ├── tokenizer.ts      分词 + 角色归属
-│   ├── kvSim.ts          KV cache 快照 + prefix diff
-│   ├── agentLoop.ts      消息 → template → tokenize → prefill → decode → tool_call 完整循环
-│   ├── demo.ts           无需 API key 的演示对话
-│   ├── snapshot.ts       URL hash 分享/导入
-│   ├── providers/        OpenAI 兼容 / Anthropic streaming 客户端 + proxyFetch
-│   └── tools/            内置 mock tools
-├── islands/              React 客户端组件
-│   ├── App.tsx           主壳 + 三栏布局
-│   ├── AgentChat.tsx     左侧：system prompt + tools + messages + 输入
-│   ├── LensChatTemplate.tsx  渲染后的 Jinja 模板（支持双模板对比）
-│   ├── LensTokens.tsx        分词后的 token 序列（支持双 tokenizer 对比）
-│   ├── LensContextKv.tsx     KV cache 状态分布 + 内存估算
-│   ├── RoleLegend.tsx        所有面板复用的角色 chip 条
-│   ├── SettingsDrawer.tsx    BYOK + provider + temperature + max_tokens
-│   ├── MessagesJsonModal.tsx 真正发给 provider 的 messages JSON
-│   ├── Intro.tsx             帮助按钮触发的引导卡
-│   └── lensHooks.ts          各 Lens 共享的 useLensView/useKvSnapshot
-├── pages/
-│   ├── index.astro       入口页（`export const prerender = true`）
-│   └── api/proxy.ts      BYOK CORS 兜底代理（Worker，带 host allow-list）
-├── store/                zustand store + persist
-└── styles/global.css     Tailwind v4 主题 token
+仓库按 **主题竖切**：站点壳（路由 / 布局 / 全局样式）留在 `src/`，每个交互主题独立放在 `topics/<name>/`，内部再分 `app/`（Playground）/ `blog/`（文章）/ `video/`（Remotion 等）。当前只有一个主题 **`chat2token`**。
 
-wrangler.jsonc            Cloudflare Worker 配置（main 由适配器写入）
-astro.config.mjs          adapter: cloudflare()
 ```
+src/                                # 仅站点壳
+├── pages/
+│   ├── index.astro                 # 入口页（prerender），挂载 chat2token App
+│   └── api/proxy.ts                # BYOK CORS 兜底代理（Worker，带 host allow-list）
+├── layouts/Layout.astro
+└── styles/global.css               # Tailwind v4 主题 token
+
+topics/chat2token/                  # TokenTour 首个主题（playground + 未来的 blog/视频）
+├── README.md                       # 本主题说明
+├── app/                            # 互动 Playground 整块
+│   ├── App.tsx                     # 主壳 + 三栏布局
+│   ├── AgentChat.tsx               # 左侧：system prompt + tools + messages + 输入
+│   ├── LensChatTemplate.tsx        # 渲染后的 Jinja 模板（支持双模板对比）
+│   ├── LensTokens.tsx              # 分词后的 token 序列（支持双 tokenizer 对比）
+│   ├── LensContextKv.tsx           # KV cache 状态分布 + 内存估算
+│   ├── RoleLegend.tsx              # 所有面板复用的角色 chip 条
+│   ├── SettingsDrawer.tsx          # BYOK + provider + temperature + max_tokens
+│   ├── MessagesJsonModal.tsx       # 真正发给 provider 的 messages JSON
+│   ├── Intro.tsx                   # 帮助按钮触发的引导卡
+│   ├── lensHooks.ts                # 各 Lens 共享的 useLensView/useKvSnapshot
+│   ├── lensSynthesis.ts            # 派生 lens view 的纯函数
+│   ├── store/                      # zustand store + persist
+│   └── lib/                        # 纯逻辑层（无 React）
+│       ├── types.ts                # 全局类型
+│       ├── modelRegistry.ts        # 10 个模型架构参数 + KV 内存计算
+│       ├── chatTemplates.ts        # Jinja 模板 bundle 元数据
+│       ├── chatTemplates/          # 三家原始 Jinja 文件（?raw 加载）
+│       ├── template.ts             # 渲染 + 特殊 token 切片
+│       ├── spans.ts                # char-range 角色归属
+│       ├── tokenizer.ts            # 分词 + 角色归属
+│       ├── kvSim.ts                # KV cache 快照 + prefix diff
+│       ├── agentLoop.ts            # 消息 → template → tokenize → prefill → decode 循环
+│       ├── demo.ts                 # 无需 API key 的演示对话
+│       ├── pipeline.ts             # renderAndTokenize 复合管线
+│       ├── snapshot.ts             # URL hash 分享/导入
+│       ├── messageUtils.ts
+│       ├── providers/              # OpenAI 兼容 / Anthropic streaming + proxyFetch
+│       └── tools/                  # 内置 mock tools
+├── blog/                           # 主题文章（占位：zh/、en/）
+└── video/                          # Remotion / 资产（不部署；占位）
+
+wrangler.jsonc                      # Cloudflare Worker 配置（main 由适配器写入）
+astro.config.mjs                    # adapter: cloudflare()
+```
+
+> 边界约定：`src/` 只挂载 `topics/<name>/app/App.tsx`；主题内部自由互引；主题之间互不 import。共享代码先放在主题里，真出现重复时再抽到 `shared/` 或 `packages/`。
 
 ## 已知简化
 

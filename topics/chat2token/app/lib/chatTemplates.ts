@@ -2,7 +2,7 @@
  * Per-family chat template bundles.
  *
  * The Jinja source for each family lives in its own file under
- * `src/lib/chatTemplates/*.jinja` and is loaded verbatim via Vite's `?raw`
+ * `./chatTemplates/*.jinja` (next to this file) and is loaded verbatim via Vite's `?raw`
  * suffix. Do NOT hand-edit those files — run `pnpm sync-chat-templates`
  * to re-pull them from upstream. Sources:
  *

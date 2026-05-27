@@ -1,5 +1,5 @@
-import { computeSpans } from "../src/lib/spans";
-import { renderChatTemplate } from "../src/lib/template";
+import { computeSpans } from "../topics/chat2token/app/lib/spans";
+import { renderChatTemplate } from "../topics/chat2token/app/lib/template";
 
 const messages = [
   { id: "sys", role: "system" as const, content: "You are concise." },

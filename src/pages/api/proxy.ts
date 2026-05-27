@@ -24,7 +24,7 @@ function isAllowed(target: string): boolean {
 }
 
 /**
- * Generic BYOK forwarder. The client (see `src/lib/providers/proxyFetch.ts`)
+ * Generic BYOK forwarder. The client (see `topics/chat2token/app/lib/providers/proxyFetch.ts`)
  * supplies the real upstream URL via the `x-tokentour-target` header so we
  * don't bake provider routes into the worker. The Authorization / x-api-key
  * headers travel through untouched.

@@ -5,7 +5,7 @@ import {
   hfTokenizerStatus,
   loadHfTokenizer,
   onTokenizerLoadEvent,
-} from "~/lib/tokenizer";
+} from "./lib/tokenizer";
 
 /**
  * Subscribe to HF tokenizer load events so React can re-render lenses

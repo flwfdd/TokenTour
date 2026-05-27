@@ -1,5 +1,5 @@
 import { useEffect, type RefObject } from "react";
-import { useConversation } from "~/store";
+import { useConversation } from "./store";
 
 /**
  * Scroll the first child element that matches the current hover (token /

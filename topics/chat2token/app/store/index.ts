@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
-import type { Message, ToolSpec, TimelineStep, ProviderConfig, TokenInfo } from "~/lib/types";
-import { DEFAULT_MODEL_KEY, MODEL_REGISTRY, getModel } from "~/lib/modelRegistry";
-import { TEMPLATE_BUNDLES } from "~/lib/chatTemplates";
-import { BUILTIN_TOOLS } from "~/lib/tools";
-import { PROVIDER_PRESETS } from "~/lib/providers";
+import type { Message, ToolSpec, TimelineStep, ProviderConfig, TokenInfo } from "../lib/types";
+import { DEFAULT_MODEL_KEY, MODEL_REGISTRY, getModel } from "../lib/modelRegistry";
+import { TEMPLATE_BUNDLES } from "../lib/chatTemplates";
+import { BUILTIN_TOOLS } from "../lib/tools";
+import { PROVIDER_PRESETS } from "../lib/providers";
 
 export interface ConversationState {
   systemPrompt: string;

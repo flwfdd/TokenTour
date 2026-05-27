@@ -6,8 +6,8 @@ import LensContextKv from "./LensContextKv";
 import SettingsDrawer from "./SettingsDrawer";
 import Intro from "./Intro";
 import MessagesJsonModal from "./MessagesJsonModal";
-import { useConversation } from "~/store";
-import { readSnapshotFromUrl, snapshotToUrl } from "~/lib/snapshot";
+import { useConversation } from "./store";
+import { readSnapshotFromUrl, snapshotToUrl } from "./lib/snapshot";
 
 export default function App() {
   const [hydrated, setHydrated] = useState(false);

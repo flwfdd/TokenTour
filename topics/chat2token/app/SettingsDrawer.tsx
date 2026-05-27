@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useConversation } from "~/store";
-import { PROVIDER_PRESETS } from "~/lib/providers";
+import { useConversation } from "./store";
+import { PROVIDER_PRESETS } from "./lib/providers";
 
 interface Props {
   open: boolean;

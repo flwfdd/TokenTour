@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Re-pull canonical chat templates from upstream and overwrite the
- * corresponding files in `src/lib/chatTemplates/*.jinja`.
+ * corresponding files in `topics/chat2token/app/lib/chatTemplates/*.jinja`.
  *
  * Run:
  *   node scripts/sync-chat-templates.mjs            # default endpoints
@@ -17,21 +17,21 @@ const HF = process.env.HF_ENDPOINT ?? "https://hf-mirror.com";
 const SOURCES = [
   {
     family: "qwen",
-    file: "src/lib/chatTemplates/qwen3.jinja",
+    file: "topics/chat2token/app/lib/chatTemplates/qwen3.jinja",
     url: `${HF}/Qwen/Qwen3-8B/raw/main/tokenizer_config.json`,
     extract: "chat_template",
     note: "Qwen/Qwen3-8B chat_template (tokenizer_config.json)",
   },
   {
     family: "deepseek",
-    file: "src/lib/chatTemplates/deepseek_v3.jinja",
+    file: "topics/chat2token/app/lib/chatTemplates/deepseek_v3.jinja",
     url: "https://raw.githubusercontent.com/vllm-project/vllm/main/examples/tool_chat_template_deepseekv3.jinja",
     extract: null, // raw jinja file
     note: "vLLM tool_chat_template_deepseekv3.jinja",
   },
   {
     family: "gpt_oss",
-    file: "src/lib/chatTemplates/gpt_oss.jinja",
+    file: "topics/chat2token/app/lib/chatTemplates/gpt_oss.jinja",
     url: `${HF}/openai/gpt-oss-20b/raw/main/chat_template.jinja`,
     extract: null,
     note: "openai/gpt-oss-20b chat_template.jinja (Harmony format)",

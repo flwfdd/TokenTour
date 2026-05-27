@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
-import { useConversation } from "~/store";
-import { getModel } from "~/lib/modelRegistry";
-import { snapshotKv } from "~/lib/kvSim";
+import { useConversation } from "./store";
+import { getModel } from "./lib/modelRegistry";
+import { snapshotKv } from "./lib/kvSim";
 import { deriveLensView, type LensView } from "./lensSynthesis";
 import { useTokenizerLoadedVersion } from "./useTokenizerLoad";
 

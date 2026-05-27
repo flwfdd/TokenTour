@@ -7,6 +7,6 @@
       "~/*": ["./src/*"]
     }
   },
-  "include": ["src", "*.d.ts"],
+  "include": ["src", "topics", "*.d.ts"],
   "exclude": ["dist", "node_modules"]
 }

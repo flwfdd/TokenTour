@@ -2,11 +2,11 @@ import { forwardRef, useMemo, useRef, useState } from "react";
 import Pane from "./Pane";
 import { useLensView } from "./lensHooks";
 import { useScrollMatchIntoView } from "./useScrollMatch";
-import { useConversation, getActiveTools } from "~/store";
-import { renderAndTokenize } from "~/lib/pipeline";
-import { TEMPLATE_BUNDLES } from "~/lib/chatTemplates";
+import { useConversation, getActiveTools } from "./store";
+import { renderAndTokenize } from "./lib/pipeline";
+import { TEMPLATE_BUNDLES } from "./lib/chatTemplates";
 import { SEG_ROLE_VAR, SEG_LABEL, matchesHover, withinMessageFraction } from "./visual";
-import type { TokenInfo } from "~/lib/types";
+import type { TokenInfo } from "./lib/types";
 
 const FAMILY_LABEL: Record<string, string> = {
   qwen: "Qwen3",
