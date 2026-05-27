@@ -3,6 +3,9 @@ import { renderChatTemplate } from "./template";
 import { getTemplateBundle } from "./chatTemplates";
 import type { SegmentSpan } from "./tokenizer";
 
+/** Type-only re-export so callers can still `import type { SegmentSpan }` from spans/pipeline. */
+export type { SegmentSpan };
+
 function roleToSegment(role: Role): TokenSegment {
   if (role === "system") return "system";
   if (role === "user") return "user";
@@ -43,8 +46,7 @@ export function computeSpans(args: {
 }): ComputedSpans {
   const { messages, tools, family, addGenerationPrompt = true } = args;
 
-  const rendered = renderChatTemplate({ messages, tools, family, addGenerationPrompt });
-  const cleanedText = rendered.text;
+  const cleanedText = renderChatTemplate({ messages, tools, family, addGenerationPrompt });
   const bundle = getTemplateBundle(family);
 
   // ── Per-message boundary discovery ──────────────────────────────────────
@@ -80,7 +82,7 @@ export function computeSpans(args: {
       tools,
       family,
       addGenerationPrompt: false,
-    }).text;
+    });
     const diff = cleanedText.length - withoutGen.length;
     if (diff > 0) {
       let i = 0;
@@ -133,7 +135,7 @@ export function computeSpans(args: {
       messages,
       family,
       addGenerationPrompt,
-    }).text;
+    });
     const lenDiff = cleanedText.length - withoutTools.length;
     if (lenDiff > 0) {
       // Find divergence by walking from BOTH ends and computing the smallest

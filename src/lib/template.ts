@@ -20,41 +20,28 @@ export interface RenderInput {
   addGenerationPrompt?: boolean;
 }
 
-export interface RenderResult {
-  text: string;
-  bundle: TemplateBundle;
-}
-
-export function renderChatTemplate(input: RenderInput): RenderResult {
+/**
+ * Render the messages list through the family's Jinja chat template.
+ * Returns the produced text; the caller looks up the bundle separately if
+ * it needs metadata.
+ *
+ * Family-specific quirks (empty-content sentinel, `tool_call.arguments`
+ * shape) are declared on the `TemplateBundle` itself so this function is
+ * purely mechanical.
+ */
+export function renderChatTemplate(input: RenderInput): string {
   const bundle = getTemplateBundle(input.family);
   const compiled = getCompiled(bundle);
 
-  // We store `tool_call.arguments` as a parsed object. Different templates
-  // expect different shapes:
-  //   - Qwen / GPT-OSS: pipe through `|tojson` → want the raw object.
-  //   - DeepSeek: concatenates `arguments` directly into a ```json``` block
-  //     and the `+` operator in Jinja on a plain object yields literal
-  //     `"[object Map]"`. So for DeepSeek we have to pre-stringify.
-  const encodeToolArgs = (args: Record<string, unknown>): unknown => {
-    if (input.family === "deepseek") return JSON.stringify(args);
-    return args;
-  };
-
-  // DeepSeek gates its tool-call rendering branch on
-  // `message['content'] is none` — if we always pass `""`, that branch is
-  // silently skipped and the assistant collapses to a degenerate
-  // `<｜Assistant｜><｜end▁of▁sentence｜>`. So for DeepSeek we pass `null` when
-  // the message is tool_calls-only. GPT-OSS, on the other hand, has a
-  // `"<|channel|>…" in message.content` guard that crashes on null, so for
-  // it we keep `""`. Qwen is robust either way.
-  const emptyContentValue: string | null = input.family === "deepseek" ? null : "";
+  const encodeToolArgs = bundle.encodeToolArgs ?? ((args) => args);
+  const emptyContent = bundle.emptyContentValue ?? "";
 
   const messagesPayload = input.messages.map((m) => {
     const hasToolCalls = !!(m.tool_calls && m.tool_calls.length > 0);
     const hasRealContent = typeof m.content === "string" && m.content.length > 0;
     return {
       role: m.role,
-      content: hasToolCalls && !hasRealContent ? emptyContentValue : (m.content ?? ""),
+      content: hasToolCalls && !hasRealContent ? emptyContent : (m.content ?? ""),
       ...(m.tool_calls
         ? {
             tool_calls: m.tool_calls.map((tc) => ({
@@ -79,42 +66,14 @@ export function renderChatTemplate(input: RenderInput): RenderResult {
   }));
 
   try {
-    const text = compiled.render({
+    return compiled.render({
       messages: messagesPayload,
       tools: toolsPayload,
       bos_token: bundle.bosToken ?? "",
       eos_token: bundle.eosToken ?? "",
       add_generation_prompt: input.addGenerationPrompt ?? true,
     });
-    return { text, bundle };
   } catch (err) {
-    const text = `[template render error: ${(err as Error).message}]`;
-    return { text, bundle };
+    return `[template render error: ${(err as Error).message}]`;
   }
-}
-
-export interface TemplateSegment {
-  text: string;
-  kind: "special" | "control_token" | "plain";
-}
-
-export function segmentTemplate(text: string, bundle: TemplateBundle): TemplateSegment[] {
-  const tokens = [...bundle.specialTokens].sort((a, b) => b.length - a.length);
-  if (tokens.length === 0) return [{ text, kind: "plain" }];
-
-  const escaped = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const re = new RegExp(`(${escaped.join("|")})`, "g");
-
-  const out: TemplateSegment[] = [];
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) {
-      out.push({ text: text.slice(last, m.index), kind: "plain" });
-    }
-    out.push({ text: m[1]!, kind: "special" });
-    last = m.index + m[1]!.length;
-  }
-  if (last < text.length) out.push({ text: text.slice(last), kind: "plain" });
-  return out;
 }

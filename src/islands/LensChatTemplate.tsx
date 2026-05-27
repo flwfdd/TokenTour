@@ -3,9 +3,7 @@ import Pane from "./Pane";
 import { useLensView } from "./lensHooks";
 import { useScrollMatchIntoView } from "./useScrollMatch";
 import { useConversation, getActiveTools } from "~/store";
-import { renderChatTemplate } from "~/lib/template";
-import { computeSpans } from "~/lib/spans";
-import { tokenize } from "~/lib/tokenizer";
+import { renderAndTokenize } from "~/lib/pipeline";
 import { TEMPLATE_BUNDLES } from "~/lib/chatTemplates";
 import { SEG_ROLE_VAR, SEG_LABEL, matchesHover, withinMessageFraction } from "./visual";
 import type { TokenInfo } from "~/lib/types";
@@ -45,27 +43,13 @@ export default function LensChatTemplate() {
 
   const compareTokens = useMemo<TokenInfo[] | null>(() => {
     if (!compareFamily) return null;
-    const tools = getActiveTools();
-    const rendered = renderChatTemplate({
+    return renderAndTokenize({
       messages: view.messages,
-      tools,
+      tools: getActiveTools(),
       family: compareFamily,
       addGenerationPrompt: true,
-    });
-    const { cleanedText, spans } = computeSpans({
-      messages: view.messages,
-      tools,
-      family: compareFamily,
-      addGenerationPrompt: true,
-    });
-    const text = cleanedText.length > 0 ? cleanedText : rendered.text;
-    const { tokens } = tokenize(text, {
-      bundle: rendered.bundle,
-      family: compareFamily,
-      spans,
       tokenizerKey,
-    });
-    return tokens;
+    }).tokens;
   }, [compareFamily, view.messages, tokenizerKey]);
 
   // PRIMARY scroll: skip when the cursor is inside primary itself.

@@ -26,7 +26,7 @@ import {
 } from "gpt-tokenizer/encoding/o200k_harmony";
 
 import type { TokenInfo, TokenSegment, Role } from "./types";
-import type { TemplateBundle } from "./chatTemplates";
+import { getTemplateBundle } from "./chatTemplates";
 
 export interface TokenizerEntry {
   key: string;
@@ -176,6 +176,11 @@ export function hfTokenizerStatus(key: string | null | undefined): "ready" | "lo
   return "idle";
 }
 
+/** True when `key` names an HF tokenizer that hasn't finished loading. */
+export function isHfPending(key: string | null | undefined): boolean {
+  return !!key && key in HF_TOKENIZER_SPECS && hfTokenizerStatus(key) !== "ready";
+}
+
 export function hfTokenizerError(key: string): string | undefined {
   return hfErrors.get(key);
 }
@@ -255,21 +260,14 @@ export function loadHfTokenizer(key: string): Promise<TokenizerEntry> {
 }
 
 /**
- * Default tokenizer for a chat-template family when the user hasn't picked
- * one explicitly. Each family points to the HF tokenizer that *matches* it,
- * with a built-in tiktoken as fallback for families that don't have one
- * bundled (e.g. gpt-oss → harmony). Callers should also trigger the HF load via
- * `useTokenizerLoadedVersion` so the UI re-renders once the real tokenizer
- * arrives — until then `resolveTokenizer` falls back to o200k as a proxy.
+ * Default tokenizer for a chat-template family when the user picks "auto".
+ * Lives on the template bundle so adding a family only touches one file.
+ * Callers should also trigger the HF load via `useTokenizerLoadedVersion`
+ * so the UI re-renders once the real tokenizer arrives — until then
+ * `resolveTokenizer` falls back to harmony as a proxy.
  */
-const FAMILY_DEFAULT_TOKENIZER: Record<string, string> = {
-  qwen: "qwen3",
-  deepseek: "deepseek_v3",
-  gpt_oss: "harmony",
-};
-
 export function defaultTokenizerKey(family: string): string {
-  return FAMILY_DEFAULT_TOKENIZER[family] ?? "harmony";
+  return getTemplateBundle(family).defaultTokenizerKey;
 }
 
 export function resolveTokenizer(family: string, override?: string | null): TokenizerEntry {
@@ -293,8 +291,6 @@ export interface SegmentSpan {
 }
 
 export interface TokenizeOptions {
-  /** Kept for API compatibility — no longer consulted. */
-  bundle?: TemplateBundle;
   family: string;
   spans?: SegmentSpan[];
   /** Override the default family→tokenizer mapping. Key from `TOKENIZER_REGISTRY`. */
@@ -330,7 +326,7 @@ export interface TokenizeResult {
  */
 export function tokenize(text: string, opts: TokenizeOptions): TokenizeResult {
   const { family, spans, tokenizerKey } = opts;
-  const { encode, decode } = resolveTokenizer(family, tokenizerKey);
+  const { encode, decode } = resolveTokenizer(family, tokenizerKey ?? null);
 
   const ids = encode(text);
   const tokens: TokenInfo[] = [];

@@ -1,6 +1,17 @@
 import type { Message } from "./types";
 
 /**
+ * The synthetic system message we inject as id `"sys"` ahead of every
+ * outgoing payload (see `buildOutgoingMessages`). The chat panel needs to
+ * round-trip via `onMessages` without showing that sentinel back to the
+ * user, so any caller that receives a `Message[]` from the agent loop
+ * should pipe it through this helper before mutating the store.
+ */
+export function stripSystemSentinel(messages: Message[]): Message[] {
+  return messages.filter((m) => m.role !== "system" || m.id !== "sys");
+}
+
+/**
  * Whether the chat template should append the assistant generation prompt
  * (e.g. `<|im_start|>assistant\n`) given the current conversation state.
  *

@@ -2,6 +2,7 @@ import type { ChatProvider, ChatRequest, DeltaEvent } from "./types";
 import type { ToolCall } from "../types";
 import { nanoid } from "nanoid";
 import { chatFetch } from "./proxyFetch";
+import { buildOpenAiRequestBody } from "./serialize";
 
 interface AccTool {
   id: string;
@@ -15,36 +16,14 @@ export const openAiProvider: ChatProvider = {
 
   async stream(req: ChatRequest, onDelta) {
     const url = `${req.baseUrl.replace(/\/$/, "")}/chat/completions`;
-    const body = {
+    const body = buildOpenAiRequestBody({
       model: req.model,
+      messages: req.messages,
+      tools: req.tools,
+      temperature: req.temperature,
+      maxTokens: req.maxTokens,
       stream: true,
-      temperature: req.temperature ?? 0.2,
-      max_tokens: req.maxTokens ?? 1024,
-      messages: req.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        ...(m.tool_calls
-          ? {
-              tool_calls: m.tool_calls.map((tc) => ({
-                id: tc.id,
-                type: "function",
-                function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
-              })),
-            }
-          : {}),
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-        ...(m.name ? { name: m.name } : {}),
-      })),
-      ...(req.tools && req.tools.length > 0
-        ? {
-            tools: req.tools.map((t) => ({
-              type: "function",
-              function: { name: t.name, description: t.description, parameters: t.parameters },
-            })),
-            tool_choice: "auto",
-          }
-        : {}),
-    };
+    });
 
     const resp = await chatFetch(
       url,

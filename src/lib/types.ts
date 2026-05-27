@@ -62,7 +62,6 @@ export interface ModelArch {
 }
 
 export type StepKind =
-  | "user_input"
   | "compose"
   | "template"
   | "tokenize"

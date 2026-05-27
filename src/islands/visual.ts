@@ -1,4 +1,4 @@
-import type { TokenSegment, Role, Message, TokenInfo } from "~/lib/types";
+import type { TokenSegment, Message, TokenInfo } from "~/lib/types";
 
 /** Shared color tokens used across all 4 panes for visual linkage. */
 export const SEG_LABEL: Record<TokenSegment, string> = {
@@ -21,26 +21,13 @@ export const SEG_ROLE_VAR: Record<TokenSegment, string> = {
   generation: "--color-accent",
 };
 
-/** Inline style: filled background (used in stacked bars + KV columns) */
-export function segBgStyle(seg: TokenSegment): React.CSSProperties {
-  return { backgroundColor: `var(${SEG_ROLE_VAR[seg]})` };
-}
-
-/** Inline style: tinted background with alpha (used in template spans + token chips) */
-export function segTintStyle(seg: TokenSegment, alpha = 0.18): React.CSSProperties {
-  return {
-    backgroundColor: `color-mix(in oklch, var(${SEG_ROLE_VAR[seg]}) ${alpha * 100}%, transparent)`,
-    borderColor: `color-mix(in oklch, var(${SEG_ROLE_VAR[seg]}) 45%, transparent)`,
-  };
-}
-
-export function segDotStyle(seg: TokenSegment): React.CSSProperties {
-  return { backgroundColor: `var(${SEG_ROLE_VAR[seg]})` };
-}
-
-export function roleOfSegment(seg: TokenSegment): Role | null {
-  if (seg === "system" || seg === "user" || seg === "assistant" || seg === "tool") return seg;
-  return null;
+/**
+ * Resolve a role name (possibly arbitrary) to the matching `SEG_ROLE_VAR`
+ * CSS variable, falling back to `control` so callers never have to guard
+ * for unknown roles when colouring message cards.
+ */
+export function roleColorVar(role: string): string {
+  return SEG_ROLE_VAR[(role as TokenSegment) in SEG_ROLE_VAR ? (role as TokenSegment) : "control"];
 }
 
 /**

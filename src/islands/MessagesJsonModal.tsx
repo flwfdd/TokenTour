@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useConversation, getActiveTools, buildOutgoingMessages } from "~/store";
+import { buildOpenAiRequestBody } from "~/lib/providers/serialize";
 
 export default function MessagesJsonModal() {
   const state = useConversation();
@@ -17,39 +18,18 @@ export default function MessagesJsonModal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const payload = useMemo(() => {
-    const base = includeSystem ? buildOutgoingMessages(state) : state.messages;
-    const tools = includeTools ? getActiveTools() : undefined;
-    const obj: Record<string, unknown> = {
-      model: state.provider.model,
-      messages: base.map((m) => ({
-        role: m.role,
-        content: m.content,
-        ...(m.tool_calls
-          ? {
-              tool_calls: m.tool_calls.map((tc) => ({
-                id: tc.id,
-                type: "function",
-                function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
-              })),
-            }
-          : {}),
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
-        ...(m.name ? { name: m.name } : {}),
-      })),
-    };
-    if (tools && tools.length > 0) {
-      obj.tools = tools.map((t) => ({
-        type: "function",
-        function: { name: t.name, description: t.description, parameters: t.parameters },
-      }));
-      obj.tool_choice = "auto";
-    }
-    obj.stream = true;
-    obj.temperature = state.provider.temperature;
-    obj.max_tokens = state.provider.maxTokens;
-    return obj;
-  }, [open, includeSystem, includeTools, state.messages, state.systemPrompt, state.enabledTools, state.provider]);
+  const payload = useMemo(
+    () =>
+      buildOpenAiRequestBody({
+        model: state.provider.model,
+        messages: includeSystem ? buildOutgoingMessages(state) : state.messages,
+        tools: includeTools ? getActiveTools() : undefined,
+        temperature: state.provider.temperature,
+        maxTokens: state.provider.maxTokens,
+        stream: true,
+      }),
+    [open, includeSystem, includeTools, state.messages, state.systemPrompt, state.enabledTools, state.provider],
+  );
 
   const json = useMemo(() => JSON.stringify(payload, null, 2), [payload]);
 

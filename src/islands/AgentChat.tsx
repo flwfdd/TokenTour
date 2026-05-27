@@ -7,14 +7,10 @@ import { PROVIDERS } from "~/lib/providers";
 import { runAgentLoop } from "~/lib/agentLoop";
 import { BUILTIN_TOOLS } from "~/lib/tools";
 import { runDemo } from "~/lib/demo";
+import { stripSystemSentinel } from "~/lib/messageUtils";
 import { useScrollMatchIntoView } from "./useScrollMatch";
-import { SEG_ROLE_VAR } from "./visual";
-import type { Message, TokenSegment } from "~/lib/types";
-
-function roleVar(role: string): string {
-  const seg = (role as TokenSegment) in SEG_ROLE_VAR ? (role as TokenSegment) : "control";
-  return SEG_ROLE_VAR[seg];
-}
+import { SEG_ROLE_VAR, roleColorVar } from "./visual";
+import type { Message } from "~/lib/types";
 
 export default function AgentChat() {
   const state = useConversation();
@@ -104,10 +100,7 @@ export default function AgentChat() {
         tokenizerKey: state.tokenizerKey,
         templateFamily: state.templateFamily,
         onStep: (s) => state.appendStep(s),
-        onMessages: (m) => {
-          const noSystem = m.filter((x) => x.role !== "system" || x.id !== "sys");
-          state.setMessages(noSystem);
-        },
+        onMessages: (m) => state.setMessages(stripSystemSentinel(m)),
         signal: ctrl.signal,
       });
     } catch (e) {
@@ -273,7 +266,7 @@ function EditableMessageCard({
   onHoverEnter: () => void;
   onHoverLeave: () => void;
 }) {
-  const v = roleVar(m.role);
+  const v = roleColorVar(m.role);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.content ?? "");
   const taRef = useRef<HTMLTextAreaElement | null>(null);

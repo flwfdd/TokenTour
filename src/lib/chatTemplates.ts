@@ -28,6 +28,29 @@ export interface TemplateBundle {
   eosToken?: string;
   specialTokens: string[];
   /**
+   * Tokenizer key (registry or HF) to pick when the user leaves the
+   * Tokens-pane selector on "auto". Keeps the family-specific defaults
+   * co-located with the rest of the bundle so adding a family only touches
+   * this file.
+   */
+  defaultTokenizerKey: string;
+  /**
+   * Value substituted for `message.content` when a message has only
+   * tool_calls and no real text. DeepSeek's Jinja gates rendering on
+   * `content is none`, so we must pass `null`; GPT-OSS crashes on `null`
+   * inside its `"<|channel|>…" in content` check, so it needs `""`; Qwen
+   * accepts either. Defaults to `""`.
+   */
+  emptyContentValue?: string | null;
+  /**
+   * Transform `tool_call.arguments` (always stored as a parsed object)
+   * before handing it to Jinja. DeepSeek concatenates `arguments` directly
+   * into a fenced block via `+`, which on plain objects yields literal
+   * `"[object Map]"`; for it we pre-stringify. Qwen / GPT-OSS pipe through
+   * `|tojson` and want the raw object. Defaults to identity.
+   */
+  encodeToolArgs?: (args: Record<string, unknown>) => unknown;
+  /**
    * Regex source matching the OPENING marker of any message's wrapper.
    * Used by `computeSpans` to attribute opening tags (e.g. `<|im_start|>user`)
    * to the message they open rather than to the message they follow.
@@ -56,6 +79,7 @@ export const TEMPLATE_BUNDLES: Record<string, TemplateBundle> = {
     template: QWEN3_TEMPLATE,
     bosToken: "",
     eosToken: "<|im_end|>",
+    defaultTokenizerKey: "qwen3",
     specialTokens: [
       "<|im_start|>",
       "<|im_end|>",
@@ -89,6 +113,9 @@ export const TEMPLATE_BUNDLES: Record<string, TemplateBundle> = {
     template: DEEPSEEK_V3_TEMPLATE,
     bosToken: "<｜begin▁of▁sentence｜>",
     eosToken: "<｜end▁of▁sentence｜>",
+    defaultTokenizerKey: "deepseek_v3",
+    emptyContentValue: null,
+    encodeToolArgs: (args) => JSON.stringify(args),
     specialTokens: [
       "<｜begin▁of▁sentence｜>",
       "<｜end▁of▁sentence｜>",
@@ -158,6 +185,7 @@ export const TEMPLATE_BUNDLES: Record<string, TemplateBundle> = {
     template: GPT_OSS_TEMPLATE,
     bosToken: "",
     eosToken: "<|end|>",
+    defaultTokenizerKey: "harmony",
     specialTokens: [
       "<|start|>",
       "<|end|>",

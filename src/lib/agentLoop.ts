@@ -1,10 +1,9 @@
 import { nanoid } from "nanoid";
-import type { Message, ToolSpec, TimelineStep, ModelArch } from "./types";
+import type { Message, ToolSpec, TimelineStep, ModelArch, TokenInfo } from "./types";
 import type { ChatProvider } from "./providers";
 import { findTool } from "./tools";
-import { renderChatTemplate } from "./template";
-import { computeSpans } from "./spans";
-import { tokenize, countTokens } from "./tokenizer";
+import { renderAndTokenize } from "./pipeline";
+import { countTokens } from "./tokenizer";
 import { snapshotKv, diffPrefix } from "./kvSim";
 
 export interface RunLoopArgs {
@@ -55,7 +54,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
   const family = templateFamily;
 
   let workingMessages = [...args.messages];
-  let prevTokens: ReturnType<typeof tokenize>["tokens"] | undefined;
+  let prevTokens: TokenInfo[] | undefined;
   let turn = 0;
 
   for (let iter = 0; iter < maxIterations; iter++) {
@@ -70,23 +69,11 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
     };
     onStep(composeStep);
 
-    const rendered = renderChatTemplate({
+    const { text, tokens } = renderAndTokenize({
       messages: workingMessages,
       tools,
       family,
       addGenerationPrompt: true,
-    });
-    const { cleanedText, spans } = computeSpans({
-      messages: workingMessages,
-      tools,
-      family,
-      addGenerationPrompt: true,
-    });
-    const text = cleanedText.length > 0 ? cleanedText : rendered.text;
-    const { tokens } = tokenize(text, {
-      bundle: rendered.bundle,
-      family,
-      spans,
       tokenizerKey,
     });
 
@@ -224,29 +211,17 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
       continue;
     }
 
-    // Re-render + re-tokenize the post-turn state so the chat template /
-    // tokens panels reflect the conversation *including* the just-arrived
-    // assistant reply. Without this, both panels would stay pinned to the
-    // pre-decode prefill snapshot (selectedStepId points at this final
-    // step, whose `tokens` is empty → useLensView walks back to the last
-    // decode step, whose messagesSnapshot still doesn't have the assistant).
-    const postRendered = renderChatTemplate({
+    // Re-render the post-turn state so the chat template / tokens panels
+    // reflect the conversation *including* the just-arrived assistant
+    // reply. Without this, both panels would stay pinned to the pre-decode
+    // prefill snapshot (selectedStepId points at this final step, whose
+    // `tokens` would be empty otherwise → useLensView walks back to the
+    // last decode step, whose messagesSnapshot still lacks the assistant).
+    const { text: postText, tokens: postTokens } = renderAndTokenize({
       messages: workingMessages,
       tools,
       family,
       addGenerationPrompt: false,
-    });
-    const { cleanedText: postClean, spans: postSpans } = computeSpans({
-      messages: workingMessages,
-      tools,
-      family,
-      addGenerationPrompt: false,
-    });
-    const postText = postClean.length > 0 ? postClean : postRendered.text;
-    const { tokens: postTokens } = tokenize(postText, {
-      bundle: postRendered.bundle,
-      family,
-      spans: postSpans,
       tokenizerKey,
     });
     const postReused = diffPrefix(prevTokens, postTokens);

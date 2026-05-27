@@ -2,10 +2,9 @@ import type { TokenInfo, TokenSegment } from "~/lib/types";
 import { SEG_LABEL, SEG_ROLE_VAR } from "./visual";
 
 /**
- * Display order for the role chips. `control` is included as a defensive
- * fallback but, because we filter `count===0` chips below, only fires if a
- * token genuinely lands outside every span — which the current
- * `computeSpans` covers exhaustively, so users never see it in practice.
+ * Display order for the role chips. `control` is intentionally absent —
+ * `computeSpans` is exhaustive enough that no token lands outside every
+ * span in practice, and zero-count chips are filtered anyway.
  */
 export const SEG_ORDER: TokenSegment[] = [
   "system",
@@ -13,7 +12,6 @@ export const SEG_ORDER: TokenSegment[] = [
   "user",
   "assistant",
   "tool",
-  "control",
   "generation",
 ];
 

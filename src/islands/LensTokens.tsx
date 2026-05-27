@@ -5,15 +5,13 @@ import { useScrollMatchIntoView } from "./useScrollMatch";
 import { useConversation } from "~/store";
 import {
   resolveTokenizer,
-  hfTokenizerStatus,
-  HF_TOKENIZER_SPECS,
+  isHfPending,
   listTokenizers,
   listHfTokenizers,
   defaultTokenizerKey,
   tokenize,
 } from "~/lib/tokenizer";
-import { getTemplateBundle } from "~/lib/chatTemplates";
-import { useTokenizerLoadedVersion } from "./useTokenizerLoad";
+import { useTokenizerLoadedVersions } from "./useTokenizerLoad";
 import type { TokenInfo } from "~/lib/types";
 import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover, withinMessageFraction } from "./visual";
 import RoleLegend, { countBySegment } from "./RoleLegend";
@@ -51,11 +49,10 @@ export default function LensTokens() {
   const [primaryLocal, setPrimaryLocal] = useState<number | null>(null);
   const [compareLocal, setCompareLocal] = useState<number | null>(null);
 
-  // Subscribe to load events for BOTH the active and compare tokenizer so the
-  // pane re-renders once an HF tokenizer arrives. Pass `view.family` so the
+  // Subscribe once for both the active and compare tokenizer so the pane
+  // re-renders when either arrives. Passing `view.family` ensures the
   // auto option also kicks off the HF load when tokenizerKey is null.
-  useTokenizerLoadedVersion(tokenizerKey, view.family);
-  useTokenizerLoadedVersion(compareKey, view.family);
+  useTokenizerLoadedVersions([tokenizerKey, compareKey], view.family);
 
   const stats = useMemo(() => countBySegment(view.tokens), [view.tokens]);
   // Effective hover role — see `deriveHoverRole`. Without this, hovering a
@@ -81,16 +78,15 @@ export default function LensTokens() {
   );
 
   // Re-tokenize the same template text with the comparison tokenizer.
+  // We reuse the primary's already-computed text + spans (same family) so
+  // only the BPE encoder differs — that's the whole point of the compare.
   const compareTokens = useMemo<TokenInfo[] | null>(() => {
     if (!compareKey) return null;
-    const bundle = getTemplateBundle(view.family);
-    const { tokens } = tokenize(view.templateText, {
-      bundle,
+    return tokenize(view.templateText, {
       family: view.family,
       spans: view.spans,
       tokenizerKey: compareKey,
-    });
-    return tokens;
+    }).tokens;
   }, [compareKey, view.templateText, view.family, view.spans]);
   const compareTokenizer = compareKey ? resolveTokenizer(view.family, compareKey) : null;
   const compareIsHfPending = isHfPending(compareKey);
@@ -238,10 +234,6 @@ export default function LensTokens() {
       </div>
     </Pane>
   );
-}
-
-function isHfPending(key: string | null): boolean {
-  return !!key && key in HF_TOKENIZER_SPECS && hfTokenizerStatus(key) !== "ready";
 }
 
 function TokenizerSelect({
