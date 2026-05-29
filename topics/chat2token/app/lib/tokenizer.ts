@@ -309,6 +309,42 @@ function segmentForOffset(
   return { segment: "control" };
 }
 
+/**
+ * Attribute a token spanning `[start, end)` to the segment it MOSTLY covers,
+ * rather than the one its first character happens to land in.
+ *
+ * Why: when the active tokenizer doesn't recognise a template's special
+ * markers (e.g. the harmony fallback meeting DeepSeek's full-width `<｜User｜>`),
+ * BPE can glue a marker's leading `<` onto the trailing text of the *previous*
+ * segment into a single token. Start-offset attribution then paints that
+ * whole token — including the `<` that opens the new message — with the
+ * previous segment's color (the reported "user's first `<` shows up as
+ * system / tool"). Majority overlap fixes the common case; ties resolve to the
+ * LATER span (spans are sorted ascending), so an opening marker wins over the
+ * tail of the segment it follows.
+ */
+function segmentForRange(
+  start: number,
+  end: number,
+  spans: SegmentSpan[],
+): { segment: TokenSegment; role?: Role; messageId?: string } {
+  if (end <= start) return segmentForOffset(start, spans);
+  let best: SegmentSpan | null = null;
+  let bestOverlap = 0;
+  for (const s of spans) {
+    const lo = start > s.start ? start : s.start;
+    const hi = end < s.end ? end : s.end;
+    const overlap = hi - lo;
+    if (overlap <= 0) continue;
+    if (overlap >= bestOverlap) {
+      bestOverlap = overlap;
+      best = s;
+    }
+  }
+  if (!best) return { segment: "control" };
+  return { segment: best.segment, role: best.role, messageId: best.messageId };
+}
+
 export interface TokenizeResult {
   tokens: TokenInfo[];
   totalCount: number;
@@ -361,7 +397,7 @@ export function tokenize(text: string, opts: TokenizeOptions): TokenizeResult {
       }
     }
     const seg = spans
-      ? segmentForOffset(charStart, spans)
+      ? segmentForRange(charStart, charStart + charLen, spans)
       : { segment: "control" as TokenSegment };
     tokens.push({
       id,

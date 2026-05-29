@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { TokenSegment, Message, TokenInfo } from "./lib/types";
 
 /** Shared color tokens used across all 4 panes for visual linkage. */
@@ -16,9 +17,12 @@ export const SEG_ROLE_VAR: Record<TokenSegment, string> = {
   user: "--color-role-user",
   assistant: "--color-role-assistant",
   tool: "--color-role-tool",
-  tools_schema: "--color-warn",
+  // The tool schema is injected into the system prompt, so it shares system's
+  // (purple) family rather than the tool-result color.
+  tools_schema: "--color-role-schema",
   control: "--color-border",
-  generation: "--color-accent",
+  // The generation prompt opens the assistant turn → assistant's family.
+  generation: "--color-role-generation",
 };
 
 /**
@@ -28,6 +32,61 @@ export const SEG_ROLE_VAR: Record<TokenSegment, string> = {
  */
 export function roleColorVar(role: string): string {
   return SEG_ROLE_VAR[(role as TokenSegment) in SEG_ROLE_VAR ? (role as TokenSegment) : "control"];
+}
+
+/**
+ * The single source of truth for how a role/segment is painted, so the *same*
+ * segment looks identical in every pane (chat cards, token strip, template,
+ * KV grid, legend) and only changes *intensity* — never *hue* — between its
+ * rest and hover states.
+ *
+ * Design goals (per repeated user feedback): minimal & airy, never "busy or
+ * dirty". So: a faint tint at rest, a slightly stronger tint when active, the
+ * role's own hue for the emphasis ring/border (no stray accent color), and no
+ * heavy drop shadows. The hue is constant across states → the color reads as
+ * "the same thing, just focused".
+ *
+ * @param seg     which segment to color
+ * @param o.hovered  this exact element is the current hover target
+ * @param o.dim      element does NOT match the current hover → de-emphasize
+ * @param o.border   draw a 1px role-tinted outline (chips / cards / tiles);
+ *                   borderless callers (dense token runs) get an inset ring
+ *                   on hover instead so adjacent edges never stack up
+ * @param o.special  special token → paint the *text* in the role hue
+ */
+export interface TintSurfaceOpts {
+  hovered?: boolean;
+  dim?: boolean;
+  border?: boolean;
+  special?: boolean;
+  /** Skip CSS transitions — for dense token grids where any easing reads as
+   * lag ("不跟手"); the highlight should snap to the cursor. */
+  instant?: boolean;
+}
+
+/** Same treatment as {@link roleSurfaceStyle} but keyed off a raw CSS custom
+ * property (e.g. a `--color-kv-*` state color) rather than a segment. */
+export function tintSurfaceStyle(cssVar: string, o: TintSurfaceOpts = {}): CSSProperties {
+  const { hovered = false, dim = false, border = false, special = false, instant = false } = o;
+  const style: CSSProperties = {
+    backgroundColor: `color-mix(in oklch, var(${cssVar}) ${hovered ? 26 : 15}%, transparent)`,
+  };
+  if (!instant) {
+    style.transition =
+      "background-color 0.07s ease, border-color 0.07s ease, box-shadow 0.07s ease, opacity 0.12s ease";
+  }
+  if (border) {
+    style.border = `1px solid color-mix(in oklch, var(${cssVar}) ${hovered ? 65 : 40}%, transparent)`;
+  } else if (hovered) {
+    style.boxShadow = `inset 0 0 0 1.5px color-mix(in oklch, var(${cssVar}) 70%, transparent)`;
+  }
+  if (special) style.color = `var(${cssVar})`;
+  if (dim && !hovered) style.opacity = 0.4;
+  return style;
+}
+
+export function roleSurfaceStyle(seg: TokenSegment, o: TintSurfaceOpts = {}): CSSProperties {
+  return tintSurfaceStyle(SEG_ROLE_VAR[seg], o);
 }
 
 /**

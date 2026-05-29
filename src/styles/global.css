@@ -1,126 +1,18 @@
+/*
+ * Global stylesheet — the single entry shared by every page.
+ *
+ *   tailwindcss  → utility classes (layout, spacing) used across the app
+ *   design.css   → the paper / cyan / orange design language (tokens, prose,
+ *                  buttons, badges, callouts, code blocks, …)
+ *
+ * Anything specific to a single feature (e.g. the chat2token playground)
+ * lives with that feature, not here.
+ */
+
 @import "tailwindcss";
-
-@theme {
-  --color-bg: oklch(0.18 0.01 260);
-  --color-surface: oklch(0.22 0.012 260);
-  --color-surface-2: oklch(0.26 0.014 260);
-  --color-border: oklch(0.32 0.016 260);
-  --color-fg: oklch(0.96 0.005 260);
-  --color-muted: oklch(0.7 0.015 260);
-  --color-accent: oklch(0.78 0.16 230);
-  --color-accent-2: oklch(0.78 0.15 150);
-  --color-warn: oklch(0.82 0.16 75);
-  --color-danger: oklch(0.7 0.2 25);
-
-  --color-role-system: oklch(0.74 0.04 280);
-  --color-role-user: oklch(0.78 0.13 230);
-  --color-role-assistant: oklch(0.78 0.14 150);
-  --color-role-tool: oklch(0.8 0.15 60);
-
-  --color-kv-reused: oklch(0.5 0.12 240);
-  --color-kv-prefill: oklch(0.7 0.2 25);
-  --color-kv-decode: oklch(0.78 0.16 50);
-
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-}
-
-html,
-body {
-  background: var(--color-bg);
-  color: var(--color-fg);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  -webkit-font-smoothing: antialiased;
-}
+@import "./design.css";
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
-}
-
-.glass {
-  background: color-mix(in oklch, var(--color-surface) 80%, transparent);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--color-border);
-}
-
-.hairline {
-  border: 1px solid var(--color-border);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.75rem;
-  border-radius: 0.5rem;
-  font-size: 0.8125rem;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  color: var(--color-fg);
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.btn:hover {
-  background: color-mix(in oklch, var(--color-surface-2) 70%, var(--color-fg) 6%);
-}
-
-.btn-primary {
-  background: var(--color-accent);
-  color: oklch(0.16 0.02 260);
-  border-color: transparent;
-}
-
-.btn-primary:hover {
-  background: color-mix(in oklch, var(--color-accent) 90%, white 10%);
-}
-
-.btn[disabled] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-input,
-textarea,
-select {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
-  padding: 0.375rem 0.625rem;
-  color: var(--color-fg);
-  font-size: 0.875rem;
-  outline: none;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  border-color: var(--color-accent);
-}
-
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-}
-
-.kbd {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  padding: 0.0625rem 0.375rem;
-  border-radius: 0.25rem;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
+  scrollbar-color: var(--color-rule) transparent;
 }

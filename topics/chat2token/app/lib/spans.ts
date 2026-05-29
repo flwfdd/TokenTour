@@ -55,6 +55,9 @@ export function computeSpans(args: {
   // the matched signature so the next message's search can't accidentally
   // back-match into this message's body.
   const boundaries: number[] = new Array(messages.length + 1);
+  // Length of each message's matched opening marker (e.g. `<｜User｜>`), so we
+  // can re-assert the marker as the message's own segment after the overlays.
+  const markerLens: number[] = new Array(messages.length).fill(0);
   let cursor = 0;
   for (let i = 0; i < messages.length; i++) {
     const sig = bundle.messageOpening?.(messages[i]!, i, messages) ?? null;
@@ -63,6 +66,7 @@ export function computeSpans(args: {
       const m = re.exec(cleanedText.slice(cursor));
       if (m) {
         boundaries[i] = cursor + m.index;
+        markerLens[i] = m[0].length;
         cursor = cursor + m.index + m[0].length;
         continue;
       }
@@ -227,6 +231,46 @@ export function computeSpans(args: {
     }
   }
 
+  // ── Re-assert opening markers ───────────────────────────────────────────
+  // A message's opening marker (e.g. DeepSeek's `<｜User｜>`) always belongs to
+  // the message it opens. The tools-schema overlay diffs by character and can
+  // bracket such a marker between two schema fragments, mislabeling it as
+  // `tools_schema` (the content carve-back only restores message *bodies*, not
+  // markers — that's how the user message's leading `<` ended up pink). Force
+  // each marker range back onto its own message segment.
+  for (let i = 0; i < messages.length; i++) {
+    const len = markerLens[i]!;
+    if (len <= 0) continue;
+    const mStart = boundaries[i]!;
+    forceSegment(messageSpans, mStart, mStart + len, {
+      segment: roleToSegment(messages[i]!.role),
+      role: messages[i]!.role,
+      messageId: messages[i]!.id,
+    });
+  }
+
   messageSpans.sort((a, b) => a.start - b.start);
   return { cleanedText, spans: messageSpans };
+}
+
+/**
+ * Overwrite the character range `[start, end)` with a single `forced` span,
+ * trimming/removing any spans it overlaps. Mutates `spans` in place.
+ */
+function forceSegment(
+  spans: SegmentSpan[],
+  start: number,
+  end: number,
+  forced: Pick<SegmentSpan, "segment" | "role" | "messageId">,
+): void {
+  if (end <= start) return;
+  for (let s = spans.length - 1; s >= 0; s--) {
+    const ms = spans[s]!;
+    if (ms.end <= start || ms.start >= end) continue; // no overlap
+    const remnants: SegmentSpan[] = [];
+    if (ms.start < start) remnants.push({ ...ms, end: start });
+    if (ms.end > end) remnants.push({ ...ms, start: end });
+    spans.splice(s, 1, ...remnants);
+  }
+  spans.push({ start, end, ...forced });
 }

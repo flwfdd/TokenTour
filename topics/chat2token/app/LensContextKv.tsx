@@ -6,7 +6,7 @@ import { formatBytes, listModels } from "./lib/modelRegistry";
 import type { CellState } from "./lib/kvSim";
 import { cellStateAt } from "./lib/kvSim";
 import type { TokenInfo, TokenSegment } from "./lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover } from "./visual";
+import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover, tintSurfaceStyle } from "./visual";
 import RoleLegend, { countBySegment } from "./RoleLegend";
 
 const STATE_COLOR_VAR: Record<CellState, string> = {
@@ -33,6 +33,8 @@ interface RoleSegment {
   end: number;
   segment: TokenSegment;
   messageId?: string;
+  /** set of KV states the tokens in this role-run fall into */
+  states: Set<CellState>;
 }
 
 interface KvCell {
@@ -75,8 +77,8 @@ export default function LensContextKv() {
 
   // Top bar: contiguous same-(segment, messageId) groups.
   const roleSegments = useMemo<RoleSegment[]>(
-    () => buildRoleSegments(view.tokens, total),
-    [view.tokens, total],
+    () => buildRoleSegments(view.tokens, total, snapshot),
+    [view.tokens, total, snapshot],
   );
 
   // Bottom strip: one rectangular cell per token (or per small bucket when total is huge).
@@ -174,26 +176,38 @@ export default function LensContextKv() {
       }
       className="col-span-2"
     >
-      <div className="flex h-full min-h-0 flex-col gap-2 p-3">
+      <div className="flex h-full min-h-0 flex-col gap-2 px-3 py-2.5">
         <StatRow
           snapshot={snapshot}
           ctxPct={ctxPct}
           limitBytes={limitBytes}
           arch={view.arch}
           activeStates={activeStates}
+          onHoverState={(s) => {
+            setHoverState(s);
+            if (s != null) setHoverRole(null);
+          }}
         />
 
         <ContextTrack ctxPct={ctxPct} />
 
         <div className="flex flex-col gap-1.5">
-          <div className="text-[10px] text-(--color-muted)">
-            角色分布（按序列顺序聚合相邻同源 tokens）
-          </div>
+          <RoleLegend
+            counts={segCounts}
+            hoverRole={derivedHoverRole}
+            onHoverChange={(seg) => {
+              setHoverRole(seg);
+              setHoverMessage(null);
+              if (seg != null) setHoverState(null);
+            }}
+            label="角色:"
+          />
           <RoleStackedBar
             segments={roleSegments}
             total={total}
             hoverRole={derivedHoverRole}
             hoverMessageId={hoverMessageId}
+            activeStates={activeStates}
             onHoverRole={(r) => {
               setHoverRole(r);
               setHoverMessage(null);
@@ -227,20 +241,6 @@ export default function LensContextKv() {
           />
           <PositionAxis total={total} />
         </div>
-
-        <DualLegend
-          snapshot={snapshot}
-          segCounts={segCounts}
-          decodeAppended={view.decodeAppended}
-          hoverRole={derivedHoverRole}
-          activeStates={activeStates}
-          pinnedState={hoverState}
-          setHoverRole={(r) => {
-            setHoverRole(r);
-            setHoverMessage(null);
-          }}
-          setHoverState={setHoverState}
-        />
       </div>
     </Pane>
   );
@@ -252,16 +252,21 @@ function StatRow({
   limitBytes,
   arch,
   activeStates,
+  onHoverState,
 }: {
   snapshot: ReturnType<typeof useKvSnapshot>;
   ctxPct: number;
   limitBytes: number;
   arch: ReturnType<typeof useLensView>["arch"];
   activeStates: Set<CellState>;
+  onHoverState: (s: CellState | null) => void;
 }) {
   const perTok = snapshot.perTokenBytes;
   return (
-    <div className="grid grid-cols-6 gap-2 text-[11px]">
+    <div
+      className="grid grid-cols-6 gap-2 text-[11px]"
+      onMouseLeave={() => onHoverState(null)}
+    >
       <Tile
         label="总 tokens"
         value={snapshot.totalLen.toLocaleString()}
@@ -273,6 +278,8 @@ function StatRow({
         hint={formatBytes(perTok * snapshot.reusedPrefix)}
         colorVar={STATE_COLOR_VAR.reused}
         active={activeStates.has("reused")}
+        state="reused"
+        onHoverState={onHoverState}
       />
       <Tile
         label={STATE_LABEL.prefill}
@@ -280,6 +287,8 @@ function StatRow({
         hint={formatBytes(perTok * snapshot.prefillNew)}
         colorVar={STATE_COLOR_VAR.prefill}
         active={activeStates.has("prefill")}
+        state="prefill"
+        onHoverState={onHoverState}
       />
       <Tile
         label={STATE_LABEL.decode}
@@ -287,6 +296,8 @@ function StatRow({
         hint={formatBytes(perTok * snapshot.decodeAppended)}
         colorVar={STATE_COLOR_VAR.decode}
         active={activeStates.has("decode")}
+        state="decode"
+        onHoverState={onHoverState}
       />
       <Tile
         label="KV 内存"
@@ -308,28 +319,37 @@ function Tile({
   hint,
   colorVar,
   active,
+  state,
+  onHoverState,
 }: {
   label: string;
   value: string;
   hint?: string;
   colorVar?: string;
   active?: boolean;
+  state?: CellState;
+  onHoverState?: (s: CellState | null) => void;
 }) {
+  const interactive = !!colorVar && !!state && !!onHoverState;
   return (
     <div
-      className="rounded-md border px-2 py-1 transition-colors"
-      style={{
-        borderColor:
-          active && colorVar ? `var(${colorVar})` : "var(--color-border)",
-        backgroundColor:
-          active && colorVar
-            ? `color-mix(in oklch, var(${colorVar}) 18%, transparent)`
-            : "color-mix(in oklch, var(--color-bg) 30%, transparent)",
-        borderLeftWidth: colorVar ? 3 : 1,
-        borderLeftColor: colorVar ? `var(${colorVar})` : "var(--color-border)",
-      }}
+      className="rounded-[0.6rem] px-2.5 py-1.5"
+      onMouseEnter={interactive ? () => onHoverState!(state!) : undefined}
+      style={
+        active && colorVar
+          ? { ...tintSurfaceStyle(colorVar, { hovered: true }), boxShadow: "var(--pg-shadow)" }
+          : { backgroundColor: "var(--pg-tile)", boxShadow: "var(--pg-shadow)" }
+      }
     >
-      <div className="text-[10px] uppercase tracking-wider text-(--color-muted)">{label}</div>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-(--color-ink-soft)">
+        {colorVar && (
+          <span
+            className="inline-block h-2 w-2 shrink-0 rounded-sm"
+            style={{ backgroundColor: `var(${colorVar})` }}
+          />
+        )}
+        <span className="truncate">{label}</span>
+      </div>
       <div className="font-mono text-[13px]">{value}</div>
       {hint && <div className="text-[10px] text-(--color-muted)">{hint}</div>}
     </div>
@@ -349,7 +369,7 @@ function ContextTrack({ ctxPct }: { ctxPct: number }) {
         <span>上下文窗口占用</span>
         <span className="font-mono">{ctxPct.toFixed(2)}%</span>
       </div>
-      <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-(--color-surface-2)">
+      <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-(--pg-desk)">
         <div
           className="absolute inset-y-0 left-0 transition-all"
           style={{ width: `${ctxPct}%`, backgroundColor: color }}
@@ -364,6 +384,7 @@ function RoleStackedBar({
   total,
   hoverRole,
   hoverMessageId,
+  activeStates,
   onHoverRole,
   onHoverMessage,
 }: {
@@ -371,19 +392,20 @@ function RoleStackedBar({
   total: number;
   hoverRole: string | null;
   hoverMessageId: string | null;
+  activeStates: Set<CellState>;
   onHoverRole: (r: string | null) => void;
   onHoverMessage: (id: string | null) => void;
 }) {
   if (segments.length === 0 || total === 0) {
     return (
-      <div className="grid h-6 place-items-center rounded-md border border-(--color-border) text-[10px] text-(--color-muted)">
+      <div className="grid h-6 place-items-center rounded-md bg-(--color-surface-2) text-[10px] text-(--color-muted)">
         无 tokens
       </div>
     );
   }
   return (
     <div
-      className="flex h-6 w-full overflow-hidden rounded-md border border-(--color-border) bg-(--color-bg)/30"
+      className="flex h-6 w-full overflow-hidden rounded-md bg-(--color-surface-2)"
       onMouseLeave={() => {
         onHoverRole(null);
         onHoverMessage(null);
@@ -396,7 +418,13 @@ function RoleStackedBar({
           hoverRole,
           hoverMessageId,
         );
-        const dim = (hoverRole != null || hoverMessageId != null) && !match;
+        // When a KV state is active (e.g. hovering a state tile), light up only
+        // the role runs that actually contain a token in that state.
+        const stateMatch =
+          activeStates.size === 0 || [...s.states].some((st) => activeStates.has(st));
+        const dim =
+          ((hoverRole != null || hoverMessageId != null) && !match) ||
+          (activeStates.size > 0 && !stateMatch);
         const onEnter = () => {
           if (s.messageId) onHoverMessage(s.messageId);
           else onHoverRole(s.segment);
@@ -409,7 +437,9 @@ function RoleStackedBar({
             style={{
               width: `${w}%`,
               minWidth: 2,
-              backgroundColor: `var(${SEG_ROLE_VAR[s.segment]})`,
+              // Same hue, lifted in lightness + slightly softened chroma so the
+              // strip reads light but still clearly colored.
+              backgroundColor: `oklch(from var(${SEG_ROLE_VAR[s.segment]}) 0.82 calc(c * 0.72) h)`,
               opacity: dim ? 0.25 : 1,
               borderRight:
                 i < segments.length - 1
@@ -445,7 +475,7 @@ function KvCellGrid({
 }) {
   if (cells.length === 0) {
     return (
-      <div className="grid h-7 place-items-center rounded-md border border-(--color-border) text-[10px] text-(--color-muted)">
+      <div className="grid h-7 place-items-center rounded-md bg-(--color-surface-2) text-[10px] text-(--color-muted)">
         无 KV cache
       </div>
     );
@@ -454,7 +484,7 @@ function KvCellGrid({
   return (
     <div
       // Same wrapper styling as RoleStackedBar so percentages align 1:1.
-      className="flex h-7 w-full overflow-hidden rounded-md border border-(--color-border) bg-(--color-bg)/30"
+      className="flex h-7 w-full overflow-hidden rounded-md bg-(--color-surface-2)"
       onMouseLeave={() => onHover(null)}
     >
       {cells.map((c, i) => {
@@ -487,13 +517,19 @@ function KvCellGrid({
                 },
               )
             }
-            className="cursor-crosshair transition-opacity"
+            className="cursor-crosshair"
             style={{
               width: `${w}%`,
               minWidth: 1,
-              backgroundColor: `var(${STATE_COLOR_VAR[c.state]})`,
+              // Same hue, lifted lightness + slightly softened chroma; `pending` keeps its edge.
+              backgroundColor:
+                c.state === "pending"
+                  ? "var(--color-border)"
+                  : `oklch(from var(${STATE_COLOR_VAR[c.state]}) 0.82 calc(c * 0.72) h)`,
               opacity: dim && !isHovered ? 0.2 : 1,
-              boxShadow: isHovered ? "inset 0 0 0 1.5px var(--color-accent)" : undefined,
+              boxShadow: isHovered
+                ? "inset 0 0 0 2px color-mix(in oklch, var(--color-ink) 55%, transparent)"
+                : undefined,
               borderRight:
                 i < cells.length - 1
                   ? "1px solid color-mix(in oklch, var(--color-bg) 50%, transparent)"
@@ -520,86 +556,11 @@ function PositionAxis({ total }: { total: number }) {
   );
 }
 
-function DualLegend({
-  snapshot,
-  segCounts,
-  decodeAppended,
-  hoverRole,
-  activeStates,
-  pinnedState,
-  setHoverRole,
-  setHoverState,
-}: {
-  snapshot: ReturnType<typeof useKvSnapshot>;
-  segCounts: Record<TokenSegment, number>;
-  decodeAppended: number;
-  hoverRole: string | null;
-  activeStates: Set<CellState>;
-  pinnedState: CellState | null;
-  setHoverRole: (r: string | null) => void;
-  setHoverState: (s: CellState | null) => void;
-}) {
-  const stateChips: { id: CellState; count: number }[] = [
-    { id: "reused", count: snapshot.reusedPrefix },
-    { id: "prefill", count: snapshot.prefillNew },
-    { id: "decode", count: decodeAppended || snapshot.decodeAppended },
-  ];
-
-  return (
-    <div
-      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]"
-      onMouseLeave={() => {
-        setHoverState(null);
-        setHoverRole(null);
-      }}
-    >
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="text-(--color-muted)">KV 状态:</span>
-        {stateChips.map((c) => {
-          const active = activeStates.has(c.id);
-          return (
-            <button
-              key={c.id}
-              onMouseEnter={() => {
-                setHoverState(c.id);
-                setHoverRole(null);
-              }}
-              onClick={() => setHoverState(pinnedState === c.id ? null : c.id)}
-              className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 transition"
-              style={{
-                borderColor: active
-                  ? `var(${STATE_COLOR_VAR[c.id]})`
-                  : "var(--color-border)",
-                backgroundColor: active
-                  ? `color-mix(in oklch, var(${STATE_COLOR_VAR[c.id]}) 22%, transparent)`
-                  : undefined,
-              }}
-            >
-              <span
-                className="inline-block h-2 w-2 rounded-sm"
-                style={{ backgroundColor: `var(${STATE_COLOR_VAR[c.id]})` }}
-              />
-              {STATE_LABEL[c.id]} · {c.count}
-            </button>
-          );
-        })}
-      </div>
-      <span className="text-(--color-border)">│</span>
-      <RoleLegend
-        counts={segCounts}
-        hoverRole={hoverRole}
-        onHoverChange={(seg) => {
-          setHoverRole(seg);
-          if (seg != null) setHoverState(null);
-        }}
-        label="角色:"
-      />
-    </div>
-  );
-}
-
-
-function buildRoleSegments(tokens: TokenInfo[], total: number): RoleSegment[] {
+function buildRoleSegments(
+  tokens: TokenInfo[],
+  total: number,
+  snapshot: ReturnType<typeof useKvSnapshot>,
+): RoleSegment[] {
   if (total === 0) return [];
   const realLen = tokens.length;
   // Positions beyond the tokenized template represent decode-appended output,
@@ -614,17 +575,20 @@ function buildRoleSegments(tokens: TokenInfo[], total: number): RoleSegment[] {
   let start = 0;
   let curSeg: TokenSegment = segOf(0);
   let curId: string | undefined = idOf(0);
+  let curStates = new Set<CellState>([cellStateAt(snapshot, 0)]);
   for (let i = 1; i < total; i++) {
     const seg = segOf(i);
     const id = idOf(i);
     if (seg !== curSeg || id !== curId) {
-      segs.push({ start, end: i, segment: curSeg, messageId: curId });
+      segs.push({ start, end: i, segment: curSeg, messageId: curId, states: curStates });
       start = i;
       curSeg = seg;
       curId = id;
+      curStates = new Set();
     }
+    curStates.add(cellStateAt(snapshot, i));
   }
-  segs.push({ start, end: total, segment: curSeg, messageId: curId });
+  segs.push({ start, end: total, segment: curSeg, messageId: curId, states: curStates });
   return segs;
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./theme.css";
 import AgentChat from "./AgentChat";
 import LensChatTemplate from "./LensChatTemplate";
 import LensTokens from "./LensTokens";
@@ -48,15 +49,15 @@ export default function App() {
 
   if (!hydrated) {
     return (
-      <div className="grid h-screen place-items-center text-(--color-muted)">
+      <div className="pg-root grid h-screen place-items-center text-(--color-muted)">
         Loading TokenTour...
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="hairline border-l-0 border-r-0 border-t-0 flex items-center justify-between px-4 py-2">
+    <div className="pg-root flex h-screen flex-col gap-px bg-(--pg-desk)">
+      <header className="pg-chrome flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-2">
           <div className="h-6 w-6 rounded-sm bg-(--color-accent)" />
           <div className="text-sm font-semibold">TokenTour</div>
@@ -85,11 +86,11 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
-        <aside className="w-[380px] shrink-0 hairline border-l-0 border-t-0 border-b-0">
+      <div className="flex flex-1 min-h-0 gap-px bg-(--pg-desk)">
+        <aside className="pg-panel w-[380px] shrink-0">
           <AgentChat />
         </aside>
-        <main className="grid flex-1 min-h-0 min-w-0 grid-cols-2 grid-rows-[1.35fr_1fr]">
+        <main className="grid flex-1 min-h-0 min-w-0 grid-cols-2 grid-rows-[1.6fr_1fr] gap-px bg-(--pg-desk)">
           <LensChatTemplate />
           <LensTokens />
           <LensContextKv />

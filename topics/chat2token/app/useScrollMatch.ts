@@ -43,31 +43,38 @@ export function useScrollMatchIntoView({
     const container = containerRef.current;
     if (!container) return;
 
+    // Pick the element at `frac` (0..1) across a node list, or the first one
+    // when no fraction is supplied. Lets compare panes — whose absolute token
+    // indices differ across tokenizers / families — line up to roughly the
+    // same conceptual spot inside the same message *or* segment.
+    const pick = (els: NodeListOf<Element>, frac: number | null): HTMLElement | null => {
+      if (els.length === 0) return null;
+      if (frac == null) return els[0] as HTMLElement;
+      const i = Math.min(els.length - 1, Math.max(0, Math.round(frac * (els.length - 1))));
+      return els[i] as HTMLElement;
+    };
+
     let target: HTMLElement | null = null;
     if (hoverTokenIndex != null) {
       target = container.querySelector(`[data-pos="${hoverTokenIndex}"]`) as HTMLElement | null;
     } else if (hoverMessageId) {
-      // Approximate position alignment: when the hover source supplied a
-      // within-message fraction, scroll to the same fractional offset inside
-      // this pane's tokens for the same message. Lets compare panes (where
-      // absolute token indices differ across tokenizers / families) still
-      // line up roughly to the same conceptual spot in the message.
-      const els = container.querySelectorAll(
-        `[data-msgid="${cssEscape(hoverMessageId)}"]`,
-      );
-      if (els.length === 0) {
-        // Fall back to role/segment if the message isn't visible in this pane.
-        if (hoverRole) {
-          target = container.querySelector(`[data-seg="${cssEscape(hoverRole)}"]`) as HTMLElement | null;
-        }
-      } else if (hoverMessageFraction != null) {
-        const i = Math.min(els.length - 1, Math.max(0, Math.round(hoverMessageFraction * (els.length - 1))));
-        target = els[i] as HTMLElement;
-      } else {
-        target = els[0] as HTMLElement;
-      }
+      const els = container.querySelectorAll(`[data-msgid="${cssEscape(hoverMessageId)}"]`);
+      // Fall back to role/segment if the message isn't visible in this pane.
+      target =
+        els.length === 0
+          ? hoverRole
+            ? pick(container.querySelectorAll(`[data-seg="${cssEscape(hoverRole)}"]`), hoverMessageFraction)
+            : null
+          : pick(els, hoverMessageFraction);
     } else if (hoverRole) {
-      target = container.querySelector(`[data-seg="${cssEscape(hoverRole)}"]`) as HTMLElement | null;
+      // Segment-only hover (tools_schema / generation / control / system
+      // prefix — none carry a messageId). Align by the SAME within-segment
+      // fraction so hovering deep inside a big tools-schema block no longer
+      // snaps the other pane back to that block's start (the "鬼畜" jump).
+      target = pick(
+        container.querySelectorAll(`[data-seg="${cssEscape(hoverRole)}"]`),
+        hoverMessageFraction,
+      );
     }
     if (!target) return;
 

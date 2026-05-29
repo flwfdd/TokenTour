@@ -1,11 +1,11 @@
-import { forwardRef, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import Pane from "./Pane";
 import { useLensView } from "./lensHooks";
 import { useScrollMatchIntoView } from "./useScrollMatch";
 import { useConversation, getActiveTools } from "./store";
 import { renderAndTokenize } from "./lib/pipeline";
 import { TEMPLATE_BUNDLES } from "./lib/chatTemplates";
-import { SEG_ROLE_VAR, SEG_LABEL, matchesHover, withinMessageFraction } from "./visual";
+import { SEG_LABEL, matchesHover, withinMessageFraction, roleSurfaceStyle } from "./visual";
 import type { TokenInfo } from "./lib/types";
 
 const FAMILY_LABEL: Record<string, string> = {
@@ -27,6 +27,12 @@ export default function LensChatTemplate() {
   const setTemplateFamily = useConversation((s) => s.setTemplateFamily);
 
   const [compareFamily, setCompareFamily] = useState<string | null>(null);
+  // Comparing a family against itself shows two identical panes — pointless.
+  // If the primary is switched to match the current compare target, drop the
+  // comparison automatically.
+  useEffect(() => {
+    if (compareFamily && compareFamily === templateFamily) setCompareFamily(null);
+  }, [compareFamily, templateFamily]);
   // Which sub-pane the cursor currently lives in. Drives self-scroll
   // suppression so the active side never yanks itself.
   const [activeSub, setActiveSub] = useState<SubPane>(null);
@@ -38,6 +44,24 @@ export default function LensChatTemplate() {
 
   const primaryRef = useRef<HTMLPreElement | null>(null);
   const compareRef = useRef<HTMLPreElement | null>(null);
+
+  // Per-message proportional linked scrolling. A naive overall-ratio sync
+  // (scrollTop/scrollHeight) breaks badly when the two families inject very
+  // different amounts of boilerplate: the same message starts at a different
+  // overall fraction in each pane, so scrolling to a long message's body in
+  // one side leaves the other stranded at that message's start (the exact
+  // regression reported). Instead we anchor on the message at the TOP of the
+  // source viewport and place the SAME message — at the same within-message
+  // fraction — at the top of the destination.
+  // No bounce guard needed: `onScroll` only calls this when `src` is the pane
+  // the cursor is in, so the programmatic `dst.scrollTop` write below fires the
+  // passive pane's (gated, no-op) handler and stops there.
+  const linkScroll = (src: HTMLPreElement | null, dst: HTMLPreElement | null) => {
+    if (!src || !dst) return;
+    const next = proportionalScrollTop(src, dst);
+    if (next == null || Math.abs(next - dst.scrollTop) < 0.5) return;
+    dst.scrollTop = next;
+  };
 
   const families = useMemo(() => Object.keys(TEMPLATE_BUNDLES), []);
 
@@ -83,19 +107,6 @@ export default function LensChatTemplate() {
     <Pane
       title="Chat Template"
       paneId="template"
-      subtitle={
-        <span>
-          {view.templateText.length.toLocaleString()} 字符
-          {compareTokens && (
-            <>
-              {" "}vs{" "}
-              <span style={{ color: "var(--color-accent)" }}>
-                {FAMILY_LABEL[compareFamily!] ?? compareFamily}
-              </span>
-            </>
-          )}
-        </span>
-      }
       controls={
         <>
           <select
@@ -127,7 +138,6 @@ export default function LensChatTemplate() {
           </select>
         </>
       }
-      legend={<TemplateLegend />}
     >
       <div
         className={compareTokens ? "grid h-full min-h-0 grid-cols-2 gap-0" : "h-full min-h-0"}
@@ -144,7 +154,6 @@ export default function LensChatTemplate() {
           highlightIdx={primaryHighlightIdx}
           hoverRole={hoverRole}
           hoverMessageId={hoverMessageId}
-          showLabel={!!compareTokens}
           label={FAMILY_LABEL[view.family] ?? view.family}
           dividerRight={!!compareTokens}
           onHoverToken={(t) => {
@@ -155,6 +164,17 @@ export default function LensChatTemplate() {
           }}
           onLeaveTokens={() => setPrimaryLocal(null)}
           onSubEnter={() => setActiveSub("primary")}
+          onScroll={
+            compareTokens
+              ? () => {
+                  // Only the pane the cursor lives in may drive the other. This
+                  // stops the *programmatic* scroll that hover-sync performs on
+                  // the passive pane from bouncing back and yanking the pane the
+                  // user is currently reading.
+                  if (activeSub === "primary") linkScroll(primaryRef.current, compareRef.current);
+                }
+              : undefined
+          }
         />
         {compareTokens && (
           <TokenRenderedPre
@@ -163,7 +183,6 @@ export default function LensChatTemplate() {
             highlightIdx={compareLocal}
             hoverRole={hoverRole}
             hoverMessageId={hoverMessageId}
-            showLabel
             label={FAMILY_LABEL[compareFamily!] ?? compareFamily!}
             onHoverToken={(t) => {
               setCompareLocal(t.position);
@@ -174,6 +193,9 @@ export default function LensChatTemplate() {
             }}
             onLeaveTokens={() => setCompareLocal(null)}
             onSubEnter={() => setActiveSub("compare")}
+            onScroll={() => {
+              if (activeSub === "compare") linkScroll(compareRef.current, primaryRef.current);
+            }}
           />
         )}
       </div>
@@ -181,16 +203,67 @@ export default function LensChatTemplate() {
   );
 }
 
-function TemplateLegend() {
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-(--color-muted)">
-      <span>背景色 = 该 token 所属角色</span>
-      <span>·</span>
-      <span>粗体 = 特殊 token</span>
-      <span>·</span>
-      <span>hover 一段会同步高亮到其他面板</span>
-    </div>
-  );
+function cssEsc(s: string): string {
+  if (typeof CSS !== "undefined" && (CSS as any).escape) return (CSS as any).escape(s);
+  return s.replace(/["\\]/g, (m) => `\\${m}`);
+}
+
+/**
+ * Compute the scrollTop that lines `dst` up with `src` by message rather than
+ * by raw scroll ratio. Returns `null` when there's nothing useful to do (the
+ * caller should leave `dst` untouched). Falls back to overall ratio only when
+ * the anchored message can't be located in `dst`.
+ */
+function proportionalScrollTop(src: HTMLPreElement, dst: HTMLPreElement): number | null {
+  const kids = src.children;
+  if (kids.length === 0) return null;
+  const srcTop = src.getBoundingClientRect().top;
+
+  // Binary-search the first token whose bottom edge is at/below the viewport
+  // top — i.e. the topmost (partially) visible token. Children flow top→down
+  // so their vertical positions are monotonic.
+  let lo = 0;
+  let hi = kids.length - 1;
+  let idx = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const r = (kids[mid] as HTMLElement).getBoundingClientRect();
+    if (r.bottom <= srcTop) lo = mid + 1;
+    else {
+      idx = mid;
+      hi = mid - 1;
+    }
+  }
+  const anchor = kids[idx] as HTMLElement;
+  const msgid = anchor.getAttribute("data-msgid") ?? "";
+  // Message tokens key off their messageId; the segments that carry NO
+  // messageId (tools_schema / generation / control / system prefix) must key
+  // off their `data-seg` instead — otherwise every empty-msgid token gets
+  // lumped into one bucket and the within-block ratio is garbage (the janky
+  // tools-schema scrolling).
+  const sel = msgid
+    ? `[data-msgid="${cssEsc(msgid)}"]`
+    : `[data-seg="${cssEsc(anchor.getAttribute("data-seg") ?? "")}"][data-msgid=""]`;
+
+  const srcMsg = Array.from(src.querySelectorAll(sel)) as HTMLElement[];
+  const dstMsg = Array.from(dst.querySelectorAll(sel)) as HTMLElement[];
+
+  if (dstMsg.length === 0) {
+    const srcMax = src.scrollHeight - src.clientHeight;
+    const dstMax = dst.scrollHeight - dst.clientHeight;
+    if (srcMax <= 0 || dstMax <= 0) return null;
+    return (src.scrollTop / srcMax) * dstMax;
+  }
+
+  let frac = 0;
+  if (srcMsg.length > 1) {
+    const pos = srcMsg.indexOf(anchor);
+    frac = pos < 0 ? 0 : pos / (srcMsg.length - 1);
+  }
+  const di = Math.min(dstMsg.length - 1, Math.max(0, Math.round(frac * (dstMsg.length - 1))));
+  const dstTop = dst.getBoundingClientRect().top;
+  // Shift dst so the matched token sits at the same viewport-top position.
+  return dst.scrollTop + (dstMsg[di]!.getBoundingClientRect().top - dstTop);
 }
 
 const TokenRenderedPre = forwardRef<HTMLPreElement, {
@@ -201,7 +274,7 @@ const TokenRenderedPre = forwardRef<HTMLPreElement, {
   onHoverToken: (t: TokenInfo) => void;
   onLeaveTokens: () => void;
   onSubEnter: () => void;
-  showLabel?: boolean;
+  onScroll?: React.UIEventHandler<HTMLPreElement>;
   label?: string;
   dividerRight?: boolean;
 }>(function TokenRenderedPre(
@@ -213,35 +286,36 @@ const TokenRenderedPre = forwardRef<HTMLPreElement, {
     onHoverToken,
     onLeaveTokens,
     onSubEnter,
-    showLabel,
+    onScroll,
     label,
     dividerRight,
   },
   ref,
 ) {
+  const charCount = tokens.reduce((a, t) => a + t.text.length, 0);
   return (
     <div
       className={
         "relative h-full overflow-hidden flex flex-col " +
-        (dividerRight ? "border-r border-(--color-border)" : "")
+        (dividerRight ? "border-r border-(--pg-desk)" : "")
       }
       onMouseEnter={onSubEnter}
       onMouseMove={onSubEnter}
     >
-      {showLabel && label && (
-        <div className="hairline border-l-0 border-r-0 border-t-0 px-3 py-1 text-[11px] text-(--color-muted)">
-          {label} · {tokens.length.toLocaleString()} tok
+      {label && (
+        <div className="px-3 py-1 text-[11px] text-(--color-ink-soft)">
+          {label} · {tokens.length.toLocaleString()} tok · {charCount.toLocaleString()} 字符
         </div>
       )}
       <pre
         ref={ref}
         className="flex-1 min-h-0 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-5"
         onMouseLeave={onLeaveTokens}
+        onScroll={onScroll}
       >
         {tokens.map((t) => {
           const isHovered = t.position === highlightIdx;
           const dim = !matchesHover(t, hoverRole, hoverMessageId);
-          const bgVar = SEG_ROLE_VAR[t.segment];
           // Empty-text tokens come from BPE byte tokens that are a *partial*
           // UTF-8 sequence — the visible character lives in a subsequent
           // token. We must NOT substitute a literal space here (that visibly
@@ -249,16 +323,10 @@ const TokenRenderedPre = forwardRef<HTMLPreElement, {
           // invisible inline-block as a hover target.
           const isEmpty = t.text === "";
           const style: React.CSSProperties = {
-            backgroundColor: isHovered
-              ? `color-mix(in oklch, var(${bgVar}) 55%, transparent)`
-              : `color-mix(in oklch, var(${bgVar}) 16%, transparent)`,
-            opacity: dim ? 0.28 : 1,
+            ...roleSurfaceStyle(t.segment, { hovered: isHovered, dim, special: t.isSpecial, instant: true }),
             borderRadius: 2,
-            transition: "background-color 0.08s, opacity 0.15s",
             fontWeight: t.isSpecial ? 700 : 400,
-            color: t.isSpecial ? `var(${bgVar})` : undefined,
             cursor: "default",
-            boxShadow: isHovered ? `inset 0 0 0 1px var(--color-accent)` : undefined,
             ...(isEmpty
               ? {
                   display: "inline-block",

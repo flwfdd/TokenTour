@@ -1,0 +1,76 @@
+---
+// Code block with a title bar + copy button.
+//
+// Wraps Astro's <Code> (Shiki, build-time highlight) in a <figure> that
+// owns the border / radius / shadow, so the title bar and the code share
+// one rounded card. The raw source is stashed on the copy button via a
+// `data-code` attribute; a single delegated listener (see the module
+// script below) handles clipboard writes for every block on the page.
+import { Code } from "astro:components";
+import { Copy, Check } from "@lucide/astro";
+
+interface Props {
+  code: string;
+  lang?: string;
+  /** Header label. Falls back to the language when omitted. */
+  title?: string;
+}
+
+const { code, lang = "ts", title } = Astro.props;
+
+// Shiki emits a literal `\n` text node between each `<span class="line">`.
+// With `.line` set to `display:block` those newlines double the spacing,
+// so we drop them from the AST. See shikijs/shiki#552.
+const stripLineNewlines = {
+  name: "tt:strip-line-newlines",
+  code(node: { children: Array<{ type?: string; value?: string }> }) {
+    node.children = node.children.filter(
+      (c) => !(c.type === "text" && c.value === "\n"),
+    );
+  },
+};
+---
+
+<figure class="code-block">
+  <figcaption class="code-block__bar">
+    <span class="code-block__dots" aria-hidden="true">
+      <i></i><i></i><i></i>
+    </span>
+    <span class="code-block__title">{title ?? lang}</span>
+    <button
+      class="code-block__copy"
+      type="button"
+      data-code={code}
+      aria-label="复制代码"
+    >
+      <Copy class="code-block__icon code-block__icon--copy" size={15} strokeWidth={2} />
+      <Check class="code-block__icon code-block__icon--check" size={15} strokeWidth={2.4} />
+    </button>
+  </figcaption>
+  <Code code={code} lang={lang} theme="github-light" transformers={[stripLineNewlines]} />
+</figure>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>(".code-block__copy").forEach((btn) => {
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
+    btn.addEventListener("click", async () => {
+      const code = btn.getAttribute("data-code") ?? "";
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch {
+        // Fallback for non-secure contexts where the Clipboard API is gated.
+        const ta = document.createElement("textarea");
+        ta.value = code;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
+      }
+      btn.classList.add("is-copied");
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => btn.classList.remove("is-copied"), 1600);
+    });
+  });
+</script>

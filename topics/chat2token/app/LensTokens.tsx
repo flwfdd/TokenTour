@@ -13,8 +13,7 @@ import {
 } from "./lib/tokenizer";
 import { useTokenizerLoadedVersions } from "./useTokenizerLoad";
 import type { TokenInfo } from "./lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover, withinMessageFraction } from "./visual";
-import RoleLegend, { countBySegment } from "./RoleLegend";
+import { SEG_LABEL, SEG_ROLE_VAR, matchesHover, withinMessageFraction, roleSurfaceStyle } from "./visual";
 
 const TOK_LABEL_SHORT: Record<string, string> = {
   cl100k: "GPT-4",
@@ -25,6 +24,13 @@ const TOK_LABEL_SHORT: Record<string, string> = {
 
 type SubPane = "primary" | "compare" | null;
 
+const BADGE_SM: React.CSSProperties = {
+  fontSize: "10px",
+  fontWeight: 600,
+  padding: "0.05rem 0.4rem",
+  letterSpacing: 0,
+};
+
 export default function LensTokens() {
   const view = useLensView();
   const hoverTokenIndex = useConversation((s) => s.hoverTokenIndex);
@@ -33,7 +39,6 @@ export default function LensTokens() {
   const tokenizerKey = useConversation((s) => s.tokenizerKey);
   const setTokenizerKey = useConversation((s) => s.setTokenizerKey);
   const setHoverFromToken = useConversation((s) => s.setHoverFromToken);
-  const setHoverRole = useConversation((s) => s.setHoverRole);
   const primaryRef = useRef<HTMLDivElement | null>(null);
   const compareRef = useRef<HTMLDivElement | null>(null);
 
@@ -54,21 +59,6 @@ export default function LensTokens() {
   // auto option also kicks off the HF load when tokenizerKey is null.
   useTokenizerLoadedVersions([tokenizerKey, compareKey], view.family);
 
-  const stats = useMemo(() => countBySegment(view.tokens), [view.tokens]);
-  // Effective hover role — see `deriveHoverRole`. Without this, hovering a
-  // user/assistant/tool token would leave every legend chip dim because the
-  // store clears `hoverRole` whenever it has a concrete `hoverMessageId`.
-  const effectiveHoverRole = useMemo(
-    () =>
-      deriveHoverRole({
-        hoverRole,
-        hoverTokenIndex,
-        hoverMessageId,
-        tokens: view.tokens,
-        messages: view.messages,
-      }),
-    [hoverRole, hoverTokenIndex, hoverMessageId, view.tokens, view.messages],
-  );
   const activeTokenizer = resolveTokenizer(view.family, tokenizerKey);
   // For "auto" (tokenizerKey === null), the resolved tokenizer can be either
   // o200k (immediate) or the family's matched HF (pending while loading).
@@ -116,26 +106,10 @@ export default function LensTokens() {
     hoverRole,
   });
 
-  const subtitle = (
-    <span>
-      {tokIsHfPending ? " (加载中…) · " : ""} 词表{" "}
-      {activeTokenizer.vocabSize.toLocaleString()}
-      {compareTokens && compareTokenizer && (
-        <>
-          {" "}vs <span style={{ color: "var(--color-accent)" }}>
-            {compareIsHfPending ? " (加载中…) · " : ""}{" "}
-            {compareTokenizer.vocabSize.toLocaleString()}
-          </span>
-        </>
-      )}
-    </span>
-  );
-
   return (
     <Pane
       title="Tokens"
       paneId="tokens"
-      subtitle={subtitle}
       controls={
         <>
           <TokenizerSelect
@@ -162,22 +136,15 @@ export default function LensTokens() {
           (hoverTokenIndex != null && view.tokens[hoverTokenIndex]) ||
           null;
         return t ? (
-          <div className="px-3 py-1.5 text-[11px] font-mono">
+          <div className="flex min-h-[2rem] items-center px-3 font-mono">
             <TokenDetail t={t} />
           </div>
         ) : (
-          <div className="px-3 py-1.5 text-[11px] text-(--color-muted)">
+          <div className="flex min-h-[2rem] items-center px-3 text-[10px] text-(--color-muted)">
             悬停一个 token 查看 id / 字节数等信息
           </div>
         );
       })()}
-      legend={
-        <RoleLegend
-          counts={stats}
-          hoverRole={effectiveHoverRole}
-          onHoverChange={setHoverRole}
-        />
-      }
     >
       <div
         className={
@@ -207,7 +174,8 @@ export default function LensTokens() {
           }}
           onLeaveTokens={() => setPrimaryLocal(null)}
           onSubEnter={() => setActiveSub("primary")}
-          showLabel={!!compareTokens}
+          vocabSize={activeTokenizer.vocabSize}
+          pending={tokIsHfPending}
           dividerRight={!!compareTokens}
           empty={!compareTokens && view.tokens.length === 0}
         />
@@ -228,7 +196,8 @@ export default function LensTokens() {
             }}
             onLeaveTokens={() => setCompareLocal(null)}
             onSubEnter={() => setActiveSub("compare")}
-            showLabel
+            vocabSize={compareTokenizer!.vocabSize}
+            pending={compareIsHfPending}
           />
         )}
       </div>
@@ -282,7 +251,8 @@ const TokenList = forwardRef<HTMLDivElement, {
   onHover: (t: TokenInfo) => void;
   onLeaveTokens: () => void;
   onSubEnter: () => void;
-  showLabel?: boolean;
+  vocabSize?: number;
+  pending?: boolean;
   dividerRight?: boolean;
   empty?: boolean;
 }>(function TokenList(
@@ -295,7 +265,8 @@ const TokenList = forwardRef<HTMLDivElement, {
     onHover,
     onLeaveTokens,
     onSubEnter,
-    showLabel,
+    vocabSize,
+    pending,
     dividerRight,
     empty,
   },
@@ -303,21 +274,21 @@ const TokenList = forwardRef<HTMLDivElement, {
 ) {
   return (
     <div
-      ref={ref}
       onMouseEnter={onSubEnter}
       onMouseMove={onSubEnter}
       onMouseLeave={onLeaveTokens}
       className={
-        "leading-[1.6rem] p-3 min-h-0 overflow-auto " +
-        (dividerRight ? "border-r border-(--color-border)" : "")
+        "flex h-full min-h-0 flex-col " +
+        (dividerRight ? "border-r border-(--pg-desk)" : "")
       }
     >
-      {showLabel && (
-        <div className="mb-1 text-[10px] uppercase tracking-wider text-(--color-muted) sticky top-0 bg-(--color-surface)/95 backdrop-blur-sm py-0.5 -mt-1">
-          {label} · {tokens.length.toLocaleString()} tok
-        </div>
-      )}
-      {empty ? (
+      <div className="flex-none px-3 py-1 text-[11px] text-(--color-ink-soft)">
+        {label} · {tokens.length.toLocaleString()} tok · 词表{" "}
+        {vocabSize?.toLocaleString() ?? "—"}
+        {pending ? " · 加载中…" : ""}
+      </div>
+      <div ref={ref} className="flex-1 min-h-0 overflow-auto p-3 leading-[1.6rem]">
+        {empty ? (
         <div className="grid h-full place-items-center text-xs text-(--color-muted)">
           还没有 token。在左侧输入消息并发送，或点 Demo 按钮。
         </div>
@@ -332,6 +303,7 @@ const TokenList = forwardRef<HTMLDivElement, {
           />
         ))
       )}
+      </div>
     </div>
   );
 });
@@ -353,16 +325,12 @@ function TokenChip({
     .replace(/\t/g, "→")
     .replace(/\r/g, "↩");
 
-  const bgVar = SEG_ROLE_VAR[t.segment];
-  const style: React.CSSProperties = {
-    backgroundColor: hovered
-      ? `color-mix(in oklch, var(${bgVar}) 55%, transparent)`
-      : `color-mix(in oklch, var(${bgVar}) 20%, transparent)`,
-    borderColor: `color-mix(in oklch, var(${bgVar}) 50%, transparent)`,
-    color: t.isSpecial ? `var(${bgVar})` : undefined,
-    opacity: dim && !hovered ? 0.3 : 1,
-    boxShadow: hovered ? `0 0 0 1px var(--color-accent)` : undefined,
-  };
+  const style: React.CSSProperties = roleSurfaceStyle(t.segment, {
+    hovered,
+    dim,
+    special: t.isSpecial,
+    instant: true,
+  });
 
   return (
     <span
@@ -372,7 +340,7 @@ function TokenChip({
       onMouseEnter={onHover}
       style={style}
       className={
-        "mr-0.5 mb-px inline-block cursor-default rounded-md border px-1.5 py-px font-mono text-[11px] transition " +
+        "mr-0.5 mb-px inline-block cursor-default rounded-md px-1.5 py-px font-mono text-[11px] " +
         (t.isSpecial ? "font-bold" : "")
       }
     >
@@ -383,12 +351,17 @@ function TokenChip({
 
 function TokenDetail({ t }: { t: TokenInfo }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="chip">id={t.id}</span>
-      <span className="chip">pos={t.position}</span>
-      <span className="chip">{SEG_LABEL[t.segment]}</span>
-      {t.isSpecial && <span className="chip">special</span>}
-      <span className="text-(--color-muted)">
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="badge" style={BADGE_SM}>id={t.id}</span>
+      <span className="badge" style={BADGE_SM}>pos={t.position}</span>
+      <span
+        className="badge"
+        style={{ ...BADGE_SM, ...roleSurfaceStyle(t.segment, { border: true }), color: `var(${SEG_ROLE_VAR[t.segment]})` }}
+      >
+        {SEG_LABEL[t.segment]}
+      </span>
+      {t.isSpecial && <span className="badge" style={BADGE_SM}>special</span>}
+      <span className="text-[10px] text-(--color-muted)">
         {new TextEncoder().encode(t.text).length} 字节 · {t.text.length} 字符
       </span>
     </div>

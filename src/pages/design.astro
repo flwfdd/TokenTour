@@ -1,0 +1,511 @@
+---
+// Design sandbox — paper / cyan / orange.
+// Stand-alone route at /design; doesn't share CSS with the playground.
+// Iterate freely here before promoting anything to a shared layer.
+import CodeBlock from "~/components/CodeBlock.astro";
+import Callout from "~/components/Callout.astro";
+import Accordion from "~/components/Accordion.astro";
+import Tabs from "~/components/Tabs.astro";
+import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
+import Layout from "~/layouts/Layout.astro";
+import katex from "katex";
+import "katex/dist/katex.min.css";
+
+export const prerender = true;
+
+const codeSample = `// Longest common prefix between two token sequences.
+function diffPrefix(prev: TokenInfo[], curr: TokenInfo[]): number {
+  const n = Math.min(prev.length, curr.length);
+  for (let i = 0; i < n; i++) {
+    if (prev[i]?.text !== curr[i]?.text) return i;
+  }
+  return n;
+}`;
+
+// Three views of the same idea — drives the Tabs demo.
+const tabTs = `import { encode } from "gpt-tokenizer";
+
+const ids = encode("Hello, world!");
+console.log(ids);
+// → [9906, 11, 1917, 0]`;
+
+const tabPy = `from tokenizers import Tokenizer
+
+tok = Tokenizer.from_pretrained("gpt2")
+ids = tok.encode("Hello, world!").ids
+print(ids)
+# [15496, 11, 995, 0]`;
+
+const tabJson = `{
+  "input": "Hello, world!",
+  "ids":   [9906, 11, 1917, 0],
+  "count": 4
+}`;
+
+// Tones we want to visualize on the palette. Each row generates a 6-step
+// ramp using the `--color-<tone>-<step>` tokens defined in design.css.
+const PALETTE_TONES = [
+  { key: "primary", label: "primary · cyan" },
+  { key: "accent", label: "accent · orange" },
+  { key: "success", label: "success · green" },
+  { key: "warning", label: "warning · amber" },
+  { key: "danger", label: "danger · red" },
+] as const;
+const PALETTE_STEPS = [50, 100, 300, 500, 700, 900] as const;
+
+const tex = (src: string, displayMode = false) =>
+  katex.renderToString(src, { displayMode, throwOnError: false, output: "html" });
+
+const attention = tex(
+  String.raw`\text{Attention}(Q, K, V) = \text{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_{k}}}\right) V`,
+  true,
+);
+
+const crossEntropy = tex(
+  String.raw`\mathcal{L} = -\sum_{i} \log P(y_{i} \mid y_{<i},\, x)`,
+  true,
+);
+
+const pythag = tex(String.raw`a^{2} + b^{2} = c^{2}`);
+
+const klFormula = tex(
+  String.raw`D_{\mathrm{KL}}(P \,\|\, Q) = \sum_{x} P(x)\,\log_2 \frac{P(x)}{Q(x)}`,
+);
+
+// ── Usage snippets ───────────────────────────────────────────────────
+// These are shown verbatim next to each live example so this page works
+// as a copy-paste reference for whoever (human or agent) builds the next
+// topic. Keep them in sync with the real component APIs.
+
+const usageForm = `<!-- 纯 CSS class，无需组件，沿用 .btn 的厚阴影风格 -->
+
+<!-- 输入框 / 文本域 -->
+<input class="field" type="text" placeholder="输入消息…" />
+<textarea class="field" rows="3"></textarea>
+
+<!-- 下拉：原生 select + .field + .select（自带 chevron） -->
+<select class="field select">
+  <option>Qwen3</option>
+  <option>DeepSeek-V3</option>
+</select>
+
+<!-- 单选：同 name 的 radio 包成 .choice.choice--radio -->
+<div class="choice-group">
+  <label class="choice choice--radio">
+    <input type="radio" name="fam" checked />
+    <span class="choice__mark"></span>Qwen3
+  </label>
+  <label class="choice choice--radio">
+    <input type="radio" name="fam" /><span class="choice__mark"></span>GPT-OSS
+  </label>
+</div>
+
+<!-- 多选：checkbox 包成 .choice.choice--check -->
+<label class="choice choice--check">
+  <input type="checkbox" checked /><span class="choice__mark"></span>web_search
+</label>`;
+
+const usageCallout = `---
+import Callout from "~/components/Callout.astro";
+---
+<Callout type="primary" title="定义">
+  关键概念，或指向 playground 的入口。
+</Callout>
+
+<!-- type:  note(默认) · primary · accent · success · warning · danger -->
+<!-- title: 省略则不渲染标题行，只靠底色表意 -->`;
+
+const usageAccordion = `---
+import Accordion from "~/components/Accordion.astro";
+---
+<Accordion title="什么是 KV cache？" open>
+  <p>正文……展开时像小票被打印出来。</p>
+</Accordion>
+
+<!-- title: 必填，折叠头文字 -->
+<!-- open:  可选布尔，首屏默认展开 -->`;
+
+const usageTabs = `---
+import Tabs from "~/components/Tabs.astro";
+import CodeBlock from "~/components/CodeBlock.astro";
+---
+<Tabs labels={["TypeScript", "Python", "输出"]}>
+  <Fragment slot="0"><CodeBlock code={ts}  lang="ts" /></Fragment>
+  <Fragment slot="1"><CodeBlock code={py}  lang="python" /></Fragment>
+  <Fragment slot="2"><CodeBlock code={out} lang="json" /></Fragment>
+</Tabs>
+
+<!-- labels: 标签文字数组 -->
+<!-- 面板用编号 slot（"0"、"1"…）与 labels 顺序一一对应 -->`;
+
+const usageCodeBlock = `---
+import CodeBlock from "~/components/CodeBlock.astro";
+---
+<CodeBlock code={source} lang="ts" title="diffPrefix.ts" />
+
+<!-- code:  源码字符串（必填） -->
+<!-- lang:  Shiki 语言 id，默认 "ts" -->
+<!-- title: 标题栏文件名，省略则显示语言名 -->`;
+
+const usageChart = `---
+import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
+---
+<!-- React island：必须带 client 指令才会 hydrate。 -->
+<!-- client:visible = 滚动进视口再加载，适合首屏以下的重组件。 -->
+<KLDivergenceDemo client:visible />`;
+---
+
+<Layout title="设计语言参考 · TokenTour">
+    <header class="site-bar">
+      <a href="/">⟵ TokenTour</a>
+      <span class="site-tag">Design · Specimen</span>
+    </header>
+
+    <main class="column">
+      <article class="prose">
+        <h1>设计语言参考</h1>
+        <p class="lede">
+          这一页是 TokenTour 设计语言的<strong>唯一事实来源</strong>，也是组件用法参考。
+          每个组件都给出「实时示例 + 可直接复制的代码」。要做新主题时，照着这里的写法用即可，
+          不要另起一套样式。底色乳白、主色青、强调橙——文字应该像被印出来的，不是被发光的。
+        </p>
+
+        <Callout type="primary" title="给后续 agent 的说明">
+          <p>
+            组件都在 <code>src/components/</code>，设计 token（颜色 / 字体）都在
+            <code>src/styles/design.css</code> 的 <code>:root</code> 里，用 <code>var(--color-*)</code> 取用。
+            交互组件（Accordion / Tabs）是 Astro 组件，自带 <code>&lt;script&gt;</code>，零额外接线；
+            图表是 React island，必须带 <code>client:*</code> 指令。新增颜色 / 间距时优先复用既有 token，
+            不要硬编码十六进制。
+          </p>
+        </Callout>
+
+        <hr />
+
+        <h2>文字</h2>
+        <p>
+          正文走衬线：<code>--font-serif</code> 首选 <strong>思源宋体（Noto Serif SC）</strong>，
+          经 Google Fonts 加载，离线回落到系统宋体（Songti SC / STSong）。代码用 <code>--font-mono</code>。
+          正文字重 <strong>500</strong>，<strong>加粗是 700</strong>（跨两档才够明显）；标题与正文同族，仅靠字号字重区隔。
+        </p>
+        <p>
+          可以用 <a href="#">超链接</a>（默认无下划线，hover 才有）提示更深的内容；行内的
+          <code>chat_template</code>、术语像 <strong>prefill</strong> / <em>decode</em>，以及快捷键
+          <span class="kbd">⌘</span><span class="kbd">K</span> 各占其位。
+        </p>
+
+        <h3>三级标题，节奏的最小单元</h3>
+        <p>
+          h2 上方留较宽的呼吸，h3 跟得更紧——一段长文应自然形成几个被命名的台阶，
+          而不是一连串小标题密集穿插。
+        </p>
+
+        <h2>列表</h2>
+        <ul>
+          <li>无序列表用最细的圆点，<strong>不</strong>使用方块或 emoji。</li>
+          <li>
+            支持嵌套：
+            <ul>
+              <li>第二层换成空心？暂时先保持一致。</li>
+              <li>真正的层级感应该靠缩进和留白。</li>
+            </ul>
+          </li>
+          <li>列表项内可以混排 <code>code</code> 与<strong>强调</strong>，不会破坏行距。</li>
+        </ul>
+        <ol>
+          <li>有序列表的数字用 oldstyle figures，更像正文。</li>
+          <li>第二步。</li>
+          <li>
+            第三步——通常包含一段相对长的解释，比如「为什么这个步骤要放在前面」，
+            说明完成之后接下一步。
+          </li>
+        </ol>
+
+        <h2>引用</h2>
+        <blockquote>
+          <p>
+            阅读的舒适度，<em>八成</em>来自字体与留白，剩下两成来自配色。
+            那两成里，<strong>一成</strong>来自背景不是纯白。
+          </p>
+        </blockquote>
+
+        <h2>代码 · CodeBlock</h2>
+        <p>
+          块级代码用 <code>&lt;CodeBlock&gt;</code>：Shiki 在 build 时渲染 <em>github-light</em> 主题（零运行时），
+          Carbon 风格标题栏带红绿灯圆点与复制按钮。行内代码直接写 <code>&lt;code&gt;</code>。
+        </p>
+        <CodeBlock code={codeSample} lang="ts" title="diffPrefix.ts" />
+        <CodeBlock code={usageCodeBlock} lang="astro" title="用法" />
+
+        <h2>公式</h2>
+        <p>
+          行内公式像 <span set:html={pythag} /> 直接坐进句子里；块级公式独占一行，留出呼吸。
+          由 KaTeX 在构建期 server-render，零运行时 JS。Attention 的核心可以写成：
+        </p>
+        <Fragment set:html={attention} />
+        <p>交叉熵损失：</p>
+        <Fragment set:html={crossEntropy} />
+
+        <h2>表格</h2>
+        <p>把鼠标移到任意单元格上，所在行与所在列都会轻轻亮起。</p>
+        <table>
+          <thead>
+            <tr>
+              <th>家族</th>
+              <th>分词器</th>
+              <th style="text-align: right">词表</th>
+              <th style="text-align: right">tokens / msg</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Qwen3</td>
+              <td><code>qwen3</code></td>
+              <td style="text-align: right">151 936</td>
+              <td style="text-align: right">38</td>
+            </tr>
+            <tr>
+              <td>DeepSeek-V3</td>
+              <td><code>deepseek_v3</code></td>
+              <td style="text-align: right">128 000</td>
+              <td style="text-align: right">41</td>
+            </tr>
+            <tr>
+              <td>GPT-OSS</td>
+              <td><code>o200k_harmony</code></td>
+              <td style="text-align: right">200 019</td>
+              <td style="text-align: right">36</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <hr />
+
+        <h2>按钮 · .btn</h2>
+        <p>
+          纯 CSS class，无需组件：基类 <code>.btn</code> + 一个语义修饰类。主操作用青、强调用橙；
+          按下去会陷下去（硬阴影、不偏移布局）。<code>disabled</code> 走原生属性。
+        </p>
+        <div class="row">
+          <button class="btn">默认</button>
+          <button class="btn btn-primary">开始任务</button>
+          <button class="btn btn-accent">继续 →</button>
+          <button class="btn btn-ghost">取消</button>
+        </div>
+        <div class="row" style="margin-top: 0.7rem;">
+          <button class="btn btn-success">完成 ✓</button>
+          <button class="btn btn-warning">谨慎操作</button>
+          <button class="btn btn-danger">删除</button>
+          <button class="btn" disabled>禁用</button>
+        </div>
+        <CodeBlock
+          code={`<button class="btn btn-primary">开始任务</button>
+<button class="btn btn-ghost">取消</button>
+<button class="btn btn-danger" disabled>删除</button>
+
+<!-- 修饰类：(无) · btn-primary · btn-accent · btn-ghost
+                btn-success · btn-warning · btn-danger -->`}
+          lang="astro"
+          title="用法"
+        />
+
+        <h2>标签 · .badge</h2>
+        <p>软底色药丸，用于状态 / 元信息。默认无彩，彩色版与语义色一一对应。</p>
+        <div class="row">
+          <span class="badge">draft</span>
+          <span class="badge badge-primary">primary</span>
+          <span class="badge badge-accent">accent</span>
+          <span class="badge badge-success">passed</span>
+          <span class="badge badge-warning">beta</span>
+          <span class="badge badge-danger">deprecated</span>
+        </div>
+        <CodeBlock
+          code={`<span class="badge badge-success">passed</span>
+
+<!-- 修饰类同按钮：badge-primary / accent / success / warning / danger -->`}
+          lang="astro"
+          title="用法"
+        />
+
+        <h2>表单控件 · .field / .choice</h2>
+        <p>
+          纯 CSS class，无需组件，沿用按钮的「印在纸上」风格：1.5px 边 + 细硬阴影，聚焦时描边变青、外加一圈淡青。
+          单选 / 多选是按钮式 chip（<code>.choice</code>），选中填淡青；内部圆点（单选）或对勾（多选）让单选 vs 多选一眼可辨。
+        </p>
+
+        <div class="form-demo">
+          <label class="form-row">
+            <span class="form-row__label">输入框</span>
+            <input class="field" type="text" placeholder="输入消息…" />
+          </label>
+
+          <label class="form-row">
+            <span class="form-row__label">文本域</span>
+            <textarea class="field" rows="3" placeholder="多行内容，可纵向拉伸…"></textarea>
+          </label>
+
+          <label class="form-row">
+            <span class="form-row__label">下拉</span>
+            <select class="field select">
+              <option>Qwen3</option>
+              <option>DeepSeek-V3</option>
+              <option>GPT-OSS</option>
+            </select>
+          </label>
+
+          <div class="form-row">
+            <span class="form-row__label">单选</span>
+            <div class="choice-group">
+              <label class="choice choice--radio">
+                <input type="radio" name="demo-family" checked /><span class="choice__mark"></span>Qwen3
+              </label>
+              <label class="choice choice--radio">
+                <input type="radio" name="demo-family" /><span class="choice__mark"></span>DeepSeek-V3
+              </label>
+              <label class="choice choice--radio">
+                <input type="radio" name="demo-family" /><span class="choice__mark"></span>GPT-OSS
+              </label>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <span class="form-row__label">多选</span>
+            <div class="choice-group">
+              <label class="choice choice--check">
+                <input type="checkbox" checked /><span class="choice__mark"></span>web_search
+              </label>
+              <label class="choice choice--check">
+                <input type="checkbox" /><span class="choice__mark"></span>code_interpreter
+              </label>
+              <label class="choice choice--check">
+                <input type="checkbox" checked /><span class="choice__mark"></span>retrieval
+              </label>
+              <label class="choice choice--check">
+                <input type="checkbox" disabled /><span class="choice__mark"></span>禁用项
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <CodeBlock code={usageForm} lang="astro" title="用法" />
+
+        <h2>旁注 · Callout</h2>
+        <p>
+          带 lucide 图标的旁注。<code>type</code> 决定配色与图标，<code>title</code> 可省略。
+          语义约定：<strong>primary</strong> 最常用（定义 / 关键概念），<strong>accent</strong> 给「动手 / 易踩坑」，
+          其余对应成功 / 警告 / 失败——彩色要克制，别让全文花花绿绿。
+        </p>
+        <Callout>无标题：仅靠淡灰底色与正文区分，正文直接铺满。用于补充信息。</Callout>
+        <Callout type="primary" title="定义">青色旁注用于「定义、关键概念、链接到 playground」。是文中最常出现的彩色块。</Callout>
+        <Callout type="accent" title="动手试试">橙色旁注用于「需要读者动手 / 容易踩坑」。</Callout>
+        <Callout type="success" title="通过">成功 / 通过 / 已完成态。</Callout>
+        <Callout type="warning" title="注意">警告 / 副作用 / 数据将被修改。</Callout>
+        <Callout type="danger" title="危险">失败 / 不可逆 / 安全相关。看见即提高警觉。</Callout>
+        <CodeBlock code={usageCallout} lang="astro" title="用法" />
+
+        <h2>折叠 · Accordion</h2>
+        <p>
+          一个组件 = 一个可折叠块。底层是原生 <code>&lt;details&gt;</code>（键盘 / 页内查找都在），
+          展开时正文像小票被打印出来（WAAPI 驱动，自带 <code>&lt;script&gt;</code>，无需接线）。
+          连续放多个会自动贴紧成一组。
+        </p>
+        <Accordion title="什么是 KV cache？" open>
+          <p>
+            解码每生成一个 token 都要重新做一次 attention。把过去步骤的 key / value 缓存下来、
+            复用而不重算，就是 KV cache。代价是显存随上下文线性增长。
+          </p>
+        </Accordion>
+        <Accordion title="为什么不同模型有不同 chat template？">
+          <p>
+            训练时见过什么格式，推理时就只认什么格式。Qwen、Llama、DeepSeek 的特殊 token 与拼接顺序都不一样；
+            chat_template 把结构化 messages 编译成那个模型熟悉的纯文本。本质是一段 Jinja 模板。
+          </p>
+        </Accordion>
+        <Accordion title="分词器到底在做什么？">
+          <p>
+            把字符序列切成子词单元（subword），再映射成整数 id。常见算法有 BPE、WordPiece、Unigram；
+            同一句话在不同分词器下的 id 序列没有任何可比性。
+          </p>
+        </Accordion>
+        <CodeBlock code={usageAccordion} lang="astro" title="用法" />
+
+        <h2>标签页 · Tabs</h2>
+        <p>
+          <code>labels</code> 给标签文字，面板用编号 slot（<code>"0"</code>、<code>"1"</code>…）按顺序对应。
+          active 标签下方有青色滑动下划线（弹性缓动）；禁用 JS 时第一个面板默认可见。
+        </p>
+        <Tabs labels={["TypeScript", "Python", "输出"]} label="同一段编码的三种视图">
+          <Fragment slot="0">
+            <CodeBlock code={tabTs} lang="ts" title="tokenize.ts" />
+          </Fragment>
+          <Fragment slot="1">
+            <CodeBlock code={tabPy} lang="python" title="tokenize.py" />
+          </Fragment>
+          <Fragment slot="2">
+            <CodeBlock code={tabJson} lang="json" title="result.json" />
+          </Fragment>
+        </Tabs>
+        <CodeBlock code={usageTabs} lang="astro" title="用法" />
+
+        <h2>图表 · Chart（React island）</h2>
+        <p>
+          交互式可视化用 recharts，封装成 React island。下面这个以 <strong>KL 散度</strong>为例：
+          参考分布 P = N(0, 1) 固定，用滑块调 Q 的均值与方差，实时看
+          <span set:html={klFormula} /> 怎么变，切换方向还能直观感受它的<strong>不对称性</strong>。
+          这同时是一个「内容即 skill」的范例——demo 本体已把概念讲清楚，后续 agent 可照搬这套
+          「图 + 控件 + 旁注」的结构去讲别的指标。
+        </p>
+        <KLDivergenceDemo client:visible />
+        <CodeBlock code={usageChart} lang="astro" title="用法" />
+
+        <h2>键位</h2>
+        <p>
+          快捷键样式：按 <span class="kbd">⌘</span><span class="kbd">Enter</span> 发送，
+          <span class="kbd">Esc</span> 取消编辑，<span class="kbd">/</span> 聚焦搜索。
+        </p>
+
+        <hr />
+
+        <h2>调色板</h2>
+        <p>
+          每个色（primary / accent / success / warning / danger）都是 6 档色阶，命名向 Tailwind 看齐：
+          <strong>50</strong> 最浅，做页面 hint；<strong>100</strong> 做面板填充；<strong>300</strong> 做边框；
+          <strong>500</strong> 是品牌色本身，做 CTA；<strong>700</strong> 用于 hover / 在白底上的文字；
+          <strong>900</strong> 给「在 100 填充上的高对比文字」。
+        </p>
+
+        <h3>表面 / Surface</h3>
+        <div class="ramp">
+          <div class="ramp-chip" style="background: var(--color-paper);"><span>paper</span></div>
+          <div class="ramp-chip" style="background: var(--color-paper-2);"><span>paper-2</span></div>
+          <div class="ramp-chip" style="background: var(--color-paper-3);"><span>paper-3</span></div>
+          <div class="ramp-chip" style="background: var(--color-rule-soft);"><span>rule-soft</span></div>
+          <div class="ramp-chip" style="background: var(--color-rule);"><span>rule</span></div>
+          <div class="ramp-chip" style="background: var(--color-muted); color: white;"><span>muted</span></div>
+          <div class="ramp-chip" style="background: var(--color-ink-soft); color: white;"><span>ink-soft</span></div>
+          <div class="ramp-chip" style="background: var(--color-ink); color: white;"><span>ink</span></div>
+        </div>
+
+        {PALETTE_TONES.map(({ key, label }) => (
+          <>
+            <h3>{label}</h3>
+            <div class="ramp">
+              {PALETTE_STEPS.map((step) => (
+                <div
+                  class="ramp-chip"
+                  style={`background: var(--color-${key}-${step}); color: ${step >= 500 ? "white" : "var(--color-ink)"};`}
+                >
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ))}
+      </article>
+    </main>
+
+    <footer class="site-bar" style="margin-top: 2rem;">
+      <span>chat2token · design sandbox</span>
+      <span class="site-tag">v0 · iterating</span>
+    </footer>
+</Layout>

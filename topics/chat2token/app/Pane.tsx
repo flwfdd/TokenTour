@@ -34,7 +34,7 @@ export default function Pane({
   const setHoverSource = useConversation((s) => s.setHoverSource);
   return (
     <section
-      className={"flex flex-col min-h-0 min-w-0 hairline " + (className ?? "")}
+      className={"pg-panel flex flex-col min-h-0 min-w-0 " + (className ?? "")}
       data-pane={title}
       onMouseEnter={paneId ? () => setHoverSource(paneId) : undefined}
       // Re-assert hoverSource on every move so we recover from races where
@@ -42,7 +42,7 @@ export default function Pane({
       onMouseMove={paneId ? () => setHoverSource(paneId) : undefined}
       onMouseLeave={paneId ? () => setHoverSource(null) : undefined}
     >
-      <header className="hairline border-l-0 border-r-0 border-t-0 flex items-center justify-between gap-2 px-3 py-1.5 bg-(--color-bg)/40">
+      <header className="pane-head flex items-center justify-between gap-2 px-3 py-1.5">
         <div className="flex items-baseline gap-2 min-w-0">
           <h3 className="text-[11px] font-semibold uppercase tracking-wider truncate">
             {title}
@@ -54,16 +54,12 @@ export default function Pane({
         {controls && <div className="flex items-center gap-1.5 shrink-0">{controls}</div>}
       </header>
       {legend && (
-        <div className="hairline border-l-0 border-r-0 border-t-0 px-3 py-1 text-[10px]">
+        <div className="pane-head px-3 py-1 text-[10px]">
           {legend}
         </div>
       )}
       <div className="flex-1 min-h-0 min-w-0 overflow-auto">{children}</div>
-      {footer && (
-        <div className="hairline border-l-0 border-r-0 border-b-0 shrink-0">
-          {footer}
-        </div>
-      )}
+      {footer && <div className="shrink-0">{footer}</div>}
     </section>
   );
 }

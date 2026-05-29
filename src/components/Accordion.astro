@@ -1,0 +1,88 @@
+---
+// Accordion — "receipt printing" style, built on native <details>.
+//
+// Native <details> can't animate its close, so each toggle is driven by
+// the Web Animations API instead. Three tracks run together:
+//
+//   • slot height 0 ↔ contentHeight  — opens/closes the layout column.
+//   • body translateY -100% ↔ 0       — slides the "paper" out from
+//     behind the summary so the text physically moves, not just reveals.
+//   • slot --shadow-alpha 0 ↔ 1        — fades the receipt's box-shadow
+//     on a softer curve, and (importantly) hides it while the slot is
+//     collapsed to 0 height, where a static shadow would show as a line.
+//
+// Height + transform share one polaroid/stepper easing so they stay in
+// lock-step (the paper's bottom edge tracks the slot's bottom edge);
+// the shadow rides its own ease-in-out. Markup stays native for keyboard
+// and find-in-page support.
+interface Props {
+  title: string;
+  open?: boolean;
+}
+const { title, open = false } = Astro.props;
+---
+
+<details class="accordion" open={open}>
+  <summary>{title}</summary>
+  <div class="receipt-slot">
+    <div class="accordion-body"><slot /></div>
+  </div>
+</details>
+
+<script>
+  const MOTION_OPEN = { duration: 900, easing: "cubic-bezier(0.45, 0.55, 0.18, 1)" };
+  const MOTION_CLOSE = { duration: 460, easing: "cubic-bezier(0.5, 0, 0.5, 1)" };
+  const SHADOW_EASING = "cubic-bezier(0.4, 0, 0.6, 1)";
+
+  for (const details of document.querySelectorAll<HTMLDetailsElement>(".accordion")) {
+    const summary = details.querySelector("summary");
+    const slot = details.querySelector<HTMLElement>(".receipt-slot");
+    const body = details.querySelector<HTMLElement>(".accordion-body");
+    if (!summary || !slot || !body) continue;
+
+    let anims: Animation[] = [];
+    const cancel = () => {
+      for (const a of anims) a.cancel();
+      anims = [];
+    };
+
+    summary.addEventListener("click", (e) => {
+      e.preventDefault();
+      cancel();
+      const opening = !details.open;
+
+      // Pin the slot to 0 *before* flipping [open] so the body entering
+      // layout doesn't flash at full height for one frame.
+      if (opening) {
+        slot.style.height = "0px";
+        details.open = true;
+      }
+
+      const h = opening ? body.offsetHeight : slot.offsetHeight;
+      const { duration, easing } = opening ? MOTION_OPEN : MOTION_CLOSE;
+      const fill = opening ? "none" : "forwards";
+      // Keyframes are authored in the open direction; reverse them to close.
+      const dir = <T,>(frames: T[]) => (opening ? frames : [...frames].reverse());
+
+      anims = [
+        slot.animate(dir([{ height: "0px" }, { height: `${h}px` }]), { duration, easing, fill }),
+        body.animate(
+          dir([{ transform: "translateY(-100%)" }, { transform: "translateY(0)" }]),
+          { duration, easing, fill },
+        ),
+        slot.animate(
+          dir([{ "--shadow-alpha": "0" }, { "--shadow-alpha": "1" }]),
+          { duration, easing: SHADOW_EASING, fill },
+        ),
+      ];
+
+      anims[0].onfinish = () => {
+        // Close: drop [open] before releasing the forwards-fill so the
+        // revert to baseline never paints. Open: just hand height back.
+        if (!opening) details.open = false;
+        slot.style.height = "";
+        cancel();
+      };
+    });
+  }
+</script>

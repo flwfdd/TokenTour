@@ -1,0 +1,277 @@
+/* Styles owned by KLDivergenceDemo.tsx. Relies on the design tokens
+ * (--color-*, --font-*) defined in src/styles/design.css :root. */
+
+.kl-demo {
+  margin: 1.75rem 0;
+  padding: 1.1rem 1.2rem 1.25rem;
+  border: 1px solid var(--color-rule-soft);
+  border-radius: 0.9rem;
+  background: var(--color-paper);
+}
+
+.kl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.kl-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+.kl-readout__label {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  color: var(--color-ink-soft);
+}
+.kl-readout__value {
+  font-family: var(--font-mono);
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-primary-700);
+  font-variant-numeric: tabular-nums;
+  /* The number is the headline; soften its arrival when it jumps. */
+  transition: color 0.2s ease;
+}
+.kl-readout__unit {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* Segmented direction toggle — a cyan pill that slides between the two
+ * halves with a springy "jelly" overshoot. The pill is a real element
+ * behind the labels (z-index), positioned by `[data-active]`. */
+.kl-dir {
+  --pad: 0.2rem;
+  --gap: 0.18rem;
+  position: relative;
+  display: inline-flex;
+  gap: var(--gap);
+  padding: var(--pad);
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-rule-soft);
+  border-radius: 0.6rem;
+}
+.kl-dir__pill {
+  position: absolute;
+  top: var(--pad);
+  bottom: var(--pad);
+  left: var(--pad);
+  width: calc((100% - 2 * var(--pad) - var(--gap)) / 2);
+  border-radius: 0.45rem;
+  background: var(--color-primary);
+  box-shadow: 0 1px 4px oklch(0.5 0.08 220 / 0.3);
+  z-index: 0;
+  /* ease-out-back → overshoots then settles: the jelly slide. */
+  transition: transform 0.44s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.kl-dir[data-active="QP"] .kl-dir__pill {
+  transform: translateX(calc(100% + var(--gap)));
+}
+.kl-seg {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: 0.3rem 0.85rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: color 0.25s ease;
+}
+.kl-seg:hover {
+  color: var(--color-ink);
+}
+.kl-seg.is-active {
+  color: white;
+}
+.kl-seg:focus-visible {
+  outline: 2px solid var(--color-primary-300);
+  outline-offset: 2px;
+}
+.kl-seg:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.kl-chart {
+  width: 100%;
+}
+/* KaTeX inside compact labels: keep it at the surrounding text size and
+ * vertically centered so it sits cleanly in flex rows. */
+.kl-tex .katex {
+  font-size: 1em;
+  line-height: 1;
+}
+/* recharts gives its wrapper tabindex; same OS-accent ring problem as the
+ * code blocks. Cyan on keyboard focus, nothing on mouse focus. */
+.kl-chart .recharts-wrapper:focus:not(:focus-visible) {
+  outline: none;
+}
+.kl-chart .recharts-wrapper:focus-visible {
+  outline: 2px solid var(--color-primary-300);
+  outline-offset: 2px;
+}
+
+.kl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 0.5rem 0 0.9rem;
+  font-size: 0.82rem;
+  color: var(--color-ink-soft);
+}
+.kl-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.kl-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.kl-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.9rem 1.4rem;
+  margin-bottom: 0.9rem;
+}
+.kl-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.kl-slider__label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--color-ink-soft);
+}
+.kl-slider__label b {
+  margin-left: auto;
+  color: var(--color-primary-700);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Range slider — cyan thumb + track, restyled across engines. */
+.kl-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-paper-3);
+  cursor: pointer;
+}
+.kl-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-paper);
+  box-shadow: 0 1px 3px oklch(0.5 0.05 220 / 0.35);
+  transition: transform 0.12s ease;
+}
+.kl-slider input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+.kl-slider input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-paper);
+  box-shadow: 0 1px 3px oklch(0.5 0.05 220 / 0.35);
+}
+.kl-slider input[type="range"]:focus-visible {
+  outline: 2px solid var(--color-primary-300);
+  outline-offset: 4px;
+}
+
+.kl-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.kl-preset {
+  font-size: 0.84rem;
+  padding: 0.4rem 0.85rem;
+}
+.kl-preset.is-active {
+  --btn-bg: var(--color-primary-100);
+  --btn-edge: var(--color-primary-300);
+  --btn-fg: var(--color-primary-700);
+  color: var(--color-primary-700);
+}
+
+/* "读法" panel — turns the toy into a lesson. Quiet, serif, set off by a
+   tinted top rule so it reads as commentary rather than chrome. */
+.kl-explain {
+  margin-top: 1.1rem;
+  padding-top: 0.95rem;
+  border-top: 1px dashed var(--color-rule);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-family: var(--font-serif);
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--color-ink-soft);
+}
+.kl-explain__base {
+  margin: 0;
+}
+.kl-explain__asym {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--color-muted);
+}
+.kl-explain__hint {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--color-muted);
+}
+
+/* recharts tooltip — paper card matching the design language. */
+.kl-tip {
+  background: var(--color-paper);
+  border: 1px solid var(--color-rule);
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-ink);
+  box-shadow: 0 4px 14px oklch(0.5 0.02 245 / 0.12);
+}
+.kl-tip__x {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+.kl-tip__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+}
+.kl-tip__c {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--color-rule-soft);
+  font-family: var(--font-mono);
+  color: var(--color-danger-700);
+}

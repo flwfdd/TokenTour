@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { X } from "lucide-react";
 import { useConversation, getActiveTools, buildOutgoingMessages } from "./store";
 import { buildOpenAiRequestBody } from "./lib/providers/serialize";
+import CodeBlock from "./CodeBlock";
 
 export default function MessagesJsonModal() {
   const state = useConversation();
   const open = state.messagesModalOpen;
-  const [copied, setCopied] = useState(false);
-  const [includeSystem, setIncludeSystem] = useState(true);
-  const [includeTools, setIncludeTools] = useState(true);
 
   useEffect(() => {
     if (!open) return;
@@ -18,79 +17,60 @@ export default function MessagesJsonModal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const payload = useMemo(
+  const json = useMemo(
     () =>
-      buildOpenAiRequestBody({
-        model: state.provider.model,
-        messages: includeSystem ? buildOutgoingMessages(state) : state.messages,
-        tools: includeTools ? getActiveTools() : undefined,
-        temperature: state.provider.temperature,
-        maxTokens: state.provider.maxTokens,
-        stream: true,
-      }),
-    [open, includeSystem, includeTools, state.messages, state.systemPrompt, state.enabledTools, state.provider],
+      JSON.stringify(
+        buildOpenAiRequestBody({
+          model: state.provider.model,
+          messages: buildOutgoingMessages(state),
+          tools: getActiveTools(),
+          temperature: state.provider.temperature,
+          maxTokens: state.provider.maxTokens,
+          stream: true,
+        }),
+        null,
+        2,
+      ),
+    [open, state.messages, state.systemPrompt, state.enabledTools, state.provider],
   );
-
-  const json = useMemo(() => JSON.stringify(payload, null, 2), [payload]);
+  const lineCount = useMemo(() => json.split("\n").length, [json]);
 
   if (!open) return null;
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(json);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* noop */
-    }
-  };
-
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-6 backdrop-blur-sm"
       onClick={() => state.setMessagesModalOpen(false)}
     >
       <div
-        className="glass flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl"
+        className="glass flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="hairline border-l-0 border-r-0 border-t-0 flex items-center justify-between gap-2 px-4 py-2">
-          <div>
-            <div className="text-sm font-semibold">Outgoing Request JSON</div>
-            <div className="text-[11px] text-(--color-muted)">
-              这就是 Agent 真正发给 provider 的 payload —— 包括 messages、tools、采样参数
+        <header className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">发送给 Provider 的请求体</div>
+            <div className="mt-0.5 text-[11px] leading-relaxed text-(--color-muted)">
+              Agent 真正 POST 给 provider 的 payload —— messages、tools 与采样参数
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <label className="chip cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeSystem}
-                onChange={(e) => setIncludeSystem(e.target.checked)}
-                className="h-3 w-3"
-              />
-              system
-            </label>
-            <label className="chip cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeTools}
-                onChange={(e) => setIncludeTools(e.target.checked)}
-                className="h-3 w-3"
-              />
-              tools
-            </label>
-            <button className="btn" onClick={copy}>
-              {copied ? "已复制 ✓" : "复制 JSON"}
-            </button>
-            <button className="btn" onClick={() => state.setMessagesModalOpen(false)}>
-              关闭
-            </button>
-          </div>
+          <button
+            className="-mr-1 -mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg text-(--color-muted) hover:bg-(--color-bg) hover:text-(--color-fg)"
+            onClick={() => state.setMessagesModalOpen(false)}
+            aria-label="关闭"
+            title="关闭 (Esc)"
+          >
+            <X size={16} strokeWidth={2} />
+          </button>
         </header>
-        <pre className="flex-1 min-h-0 overflow-auto p-4 font-mono text-[12px] leading-5">
-          {json}
-        </pre>
+
+        <div className="flex min-h-0 flex-1 flex-col px-5 pb-5">
+          <CodeBlock
+            code={json}
+            lang="json"
+            title={`POST /chat/completions · ${lineCount} 行`}
+            className="flex-1"
+          />
+        </div>
       </div>
     </div>
   );

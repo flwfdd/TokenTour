@@ -54,7 +54,7 @@ pnpm build && pnpm preview   # = wrangler dev
 
 ## 架构速览
 
-- **Astro 6** + **React 19 islands** + **TypeScript** + **Tailwind v4**（单一 `global.css`，OKLCH 颜色变量）
+- **Astro 6** + **React 19 islands** + **TypeScript** + **Tailwind v4**；亮色「纸 / 青 / 橙」设计语言在 `styles/design.css`，`global.css` 汇入 Tailwind + design.css 并把 playground 旧主题 token 桥接到亮色，OKLCH 颜色变量
 - 状态：`zustand`（持久化部分 → localStorage；hover / 时间线 / KV 基线 → 会话级）
 - Chat template：`@huggingface/jinja` + 三家原始 Jinja 文件（qwen3 / deepseek_v3 / gpt_oss）从 `?raw` 加载
 - Tokenizer：内置 `gpt-tokenizer`（cl100k / o200k_harmony）+ `@huggingface/transformers` 加载 Qwen3 / DeepSeek-V3 真实 BPE
@@ -71,7 +71,9 @@ src/                                # 仅站点壳
 │   ├── index.astro                 # 入口页（prerender），挂载 chat2token App
 │   └── api/proxy.ts                # BYOK CORS 兜底代理（Worker，带 host allow-list）
 ├── layouts/Layout.astro
-└── styles/global.css               # Tailwind v4 主题 token
+└── styles/
+    ├── design.css                  # 设计语言：token + prose + 组件
+    └── global.css                  # 全局入口：Tailwind + design.css + playground 桥接
 
 topics/chat2token/                  # TokenTour 首个主题（playground + 未来的 blog/视频）
 ├── README.md                       # 本主题说明

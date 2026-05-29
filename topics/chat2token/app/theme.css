@@ -1,0 +1,247 @@
+/*
+ * chat2token playground theme — scoped, not global.
+ *
+ * The playground was authored against a dark theme whose token names
+ * (`--color-bg`, `--color-role-*`, `--color-kv-*`, …) no longer exist in the
+ * global design language. Rather than touch a dozen components, we redefine
+ * those names here, mapped onto the light "paper / cyan / orange" palette, and
+ * keep the few utility classes the playground needs that aren't part of the
+ * shared language (.glass / .hairline / .card / .chip) plus its form fields.
+ *
+ * Everything is scoped under `.pg-root` (the App's root element) so none of it
+ * leaks into the blog/reading surface. Imported by App.tsx.
+ */
+
+.pg-root {
+  /* The playground is a tool UI, not prose — use the system sans at a normal
+   * weight rather than the blog's serif. */
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-weight: 400;
+  letter-spacing: 0;
+
+  /* Light "paper card" kit, reused by cards, chips, inputs and (inline)
+   * message bubbles: a soft hairline outline + generous rounding + a barely
+   * there lift. Kept minimal and airy on purpose — no heavy outlines or hard
+   * drops (those read as "busy / dirty"). All borders are 1px so adjacent
+   * edges never stack into a thick line. */
+  --pg-edge: oklch(0.85 0.012 255);
+  --pg-shadow: 0 1px 2px oklch(0.55 0.02 260 / 0.07);
+  --pg-radius: 0.8rem;
+
+  /* The workspace is built from three brightness steps of one soft cyan-milk
+   * hue, so panels and sub-zones separate by LIGHT, not by drawn borders:
+   *   desk      — deepest, fills the 1px seams between flush panels
+   *   surface-2 — mid, the faint "dock" tint for headers / footers / tracks
+   *   paper     — lightest, the panel sheet itself
+   * Everything is a gentle off-white (浅 cyan 乳白), never pure white or gray. */
+  --pg-desk: oklch(0.925 0.013 220);
+
+  --color-paper: oklch(0.992 0.0045 220);
+  --color-surface: oklch(0.992 0.0045 220);
+  --color-surface-2: oklch(0.971 0.008 220);
+  --color-bg: oklch(0.95 0.01 220);
+  /* "总 tokens" stat cards want a clean *neutral* fill — the cyan-tinted
+   * surface-2 read as muddy gray here. Near-neutral, a touch lighter. */
+  --pg-tile: oklch(0.969 0.002 250);
+  /* Kept for the rare explicit hairline, but darkened text is what carries
+   * legibility now. */
+  --color-border: oklch(0.88 0.012 220);
+  --color-fg: var(--color-ink);
+  /* Labels/captions were washed-out gray → darken the muted + soft-ink tones so
+   * tile labels ("总 tokens" …) and captions read clearly. */
+  --color-muted: oklch(0.44 0.04 232);
+  --color-ink-soft: oklch(0.34 0.05 230);
+
+  /* UI highlight / "active" hue → the brand cyan, so the playground's chrome
+   * (logo, hover rings, compare, context meter) matches the rest of the site. */
+  --color-accent: var(--color-primary);
+  --color-accent-2: var(--color-success-500);
+  --color-warn: var(--color-warning-500);
+
+  /* Token-strip / role colors — pulled straight from the design palette
+   * wherever a hue fits, so the playground lives in the same color world as
+   * the blog. Two sibling pairs keep the semantics readable:
+   *   tools_schema is a lighter sibling of system  (schema ⊂ system prompt)
+   *   generation   is a deeper sibling of assistant (it opens the assistant turn)
+   * Purple has no palette entry, so system + its schema sibling are the one
+   * deliberate exception. */
+  --color-role-system: oklch(0.62 0.17 300);          /* 紫 system — 提亮，背景 tint 更透亮 */
+  --color-role-schema: oklch(0.72 0.16 350);          /* 粉 — system 邻近色但明显区分 */
+  --color-role-user: var(--color-primary-500);        /* cyan */
+  --color-role-assistant: var(--color-success-500);   /* green */
+  --color-role-generation: var(--color-success-700);  /* 深绿 — 同 assistant 一族 */
+  --color-role-tool: var(--color-accent-500);          /* orange */
+
+  /* KV-cache states — palette hues: cached=cyan, prefill=red (heavy upfront),
+   * decode=orange (streaming out). */
+  --color-kv-reused: var(--color-primary-500);
+  --color-kv-prefill: var(--color-danger-500);
+  --color-kv-decode: var(--color-accent-500);
+
+  background: var(--pg-desk);
+}
+
+/* Chrome + panels are plain white sheets sitting flush against each other; the
+ * 1px desk seam between them is the only separation. No borders, no fills. */
+.pg-root .pg-chrome,
+.pg-root .pg-panel {
+  background: var(--color-paper);
+}
+
+/* TEMP: title bars left flat (no fill) while we evaluate where tints are
+ * actually needed. */
+.pg-root .pane-head {
+  background: transparent;
+}
+
+/* Frosted panel for modals / drawers, light edition. */
+.pg-root .glass {
+  background: color-mix(in oklch, var(--color-paper) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--pg-edge);
+  border-radius: 1rem;
+  box-shadow: 0 12px 32px oklch(0.5 0.02 250 / 0.1);
+}
+
+/* Structural hairlines stay a single soft line so adjacent panels never
+ * stack into a thick edge. */
+.pg-root .hairline {
+  border: 1px solid var(--color-border);
+}
+
+.pg-root .card {
+  background: var(--color-surface);
+  border: 1px solid var(--pg-edge);
+  border-radius: var(--pg-radius);
+  box-shadow: var(--pg-shadow);
+}
+
+.pg-root .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 0.6rem;
+  font-size: 0.75rem;
+  line-height: 1.05rem;
+  background: var(--color-surface);
+  border: 1px solid var(--pg-edge);
+  color: var(--color-ink-soft);
+}
+
+/* Native form controls — mirror the design language's `.field` / `.choice`
+ * (src/styles/design.css): a 1.5px ruled box with a thin chunky drop that
+ * focuses to a cyan edge + soft cyan ring. Text fields, selects and textareas
+ * share the box; checkbox / radio / range just borrow the brand accent. */
+.pg-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.pg-root textarea,
+.pg-root select {
+  background: var(--color-surface);
+  border: 1.5px solid var(--pg-edge);
+  border-radius: 0.55rem;
+  padding: 0.34rem 0.6rem;
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  outline: none;
+  box-shadow: 0 2px 0 0 var(--pg-edge);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.pg-root textarea {
+  resize: vertical;
+}
+
+.pg-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover,
+.pg-root textarea:hover,
+.pg-root select:hover {
+  border-color: color-mix(in oklch, var(--pg-edge) 55%, var(--color-ink));
+}
+
+.pg-root input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.pg-root textarea:focus,
+.pg-root select:focus {
+  border-color: var(--color-primary);
+  box-shadow:
+    0 2px 0 0 var(--color-primary),
+    0 0 0 3px color-mix(in oklch, var(--color-primary) 22%, transparent);
+}
+
+/* Dropdown: drop the native arrow, paint our own chevron. */
+.pg-root select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 1.7rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  background-size: 0.85rem;
+}
+
+/* The React `CodeBlock.tsx` reuses the shared `.code-block` card chrome from
+ * design.css, but that file's code styling (font, padding, line-number gutter)
+ * is scoped to `.prose`. The runtime card mounts here under `.pg-root` instead,
+ * so mirror those rules — kept identical to `.prose pre.astro-code` — and let
+ * the Shiki <pre> be a flex child that scrolls inside a height-bounded card. */
+.pg-root .code-block {
+  margin: 0;
+}
+.pg-root .code-block pre {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-code-bg) !important;
+  padding: 0.85rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.pg-root .code-block pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--color-ink);
+  display: block;
+  counter-reset: line;
+}
+.pg-root .code-block pre .line {
+  display: block;
+  padding-right: 1.25rem;
+}
+.pg-root .code-block pre .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  position: sticky;
+  left: 0;
+  width: 2.4rem;
+  padding: 0 0.85rem 0 1rem;
+  margin-right: 0.55rem;
+  text-align: right;
+  color: var(--color-muted);
+  background: var(--color-code-bg);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.7;
+  z-index: 1;
+}
+.pg-root .code-block pre .line:last-child:empty {
+  display: none;
+}
+
+/* Anything clickable shows the hand cursor. */
+.pg-root button:not(:disabled),
+.pg-root [role="button"] {
+  cursor: pointer;
+}
+
+/* Checkbox / radio / range → brand cyan, no custom box needed. */
+.pg-root input[type="checkbox"],
+.pg-root input[type="radio"],
+.pg-root input[type="range"] {
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}

@@ -1,0 +1,1224 @@
+/*
+ * Design language — paper / cyan / orange.
+ *
+ * The app-wide design system: tokens, prose surface, and UI components
+ * (buttons, badges, callouts, code blocks, …). Imported once by global.css,
+ * which also pulls in Tailwind and bridges the playground's legacy tokens.
+ * Edit this file to evolve the look everywhere.
+ */
+
+/* Design tokens live on `:root` rather than inside `@theme` because v4
+ * tree-shakes any `@theme` token that isn't referenced by a Tailwind
+ * utility class — and we use these vars exclusively through `var(...)`
+ * in CSS / inline styles, never as `bg-primary-500` utilities. Putting
+ * them on `:root` guarantees every step of the ramp ships, so the
+ * palette swatches in /design actually render. */
+:root {
+  /* Paper surface — neutral cream, no color temperature. Pure achromatic
+     keeps it reading as "off-white paper" instead of "aged paper". */
+  --color-paper: oklch(0.975 0 0);
+  --color-paper-2: oklch(0.955 0 0);
+  --color-paper-3: oklch(0.93 0 0);
+
+  /* Ink — deep cyan ink, not black. Same hue family as primary so body
+   * copy quietly belongs to the brand instead of fighting it. All three
+   * ranks share hue 218 with progressively less chroma as they lighten. */
+  --color-ink: oklch(0.24 0.04 218);
+  --color-ink-soft: oklch(0.45 0.05 218);
+  --color-muted: oklch(0.6 0.04 218);
+
+  /* Hairlines — pure neutral so they recede on neutral paper. */
+  --color-rule: oklch(0.86 0 0);
+  --color-rule-soft: oklch(0.91 0 0);
+
+  /* Brand & semantic — each color is a 6-step ramp.
+   *
+   *   50  → page-level subtle tint (super pale background)
+   *   100 → surface fill (badge bg, callout bg)
+   *   300 → border / divider for colored surfaces
+   *   500 → solid (CTA fill, primary brand color)
+   *   700 → solid hover / edge / text on white paper
+   *   900 → deepest text (used on the 100 fill for max contrast)
+   *
+   * Hand-tuned OKLCH so the ramp is perceptually even and never goes
+   * muddy on neutral paper. Use the numbered tokens for new code;
+   * the unsuffixed alias points to 500 so existing `--color-primary`
+   * callsites keep working. */
+
+  /* primary · cyan (hue 218) */
+  --color-primary-50:  oklch(0.975 0.018 218);
+  --color-primary-100: oklch(0.94 0.045 218);
+  --color-primary-300: oklch(0.84 0.085 218);
+  --color-primary-500: oklch(0.67 0.13 218);
+  --color-primary-700: oklch(0.5 0.12 220);
+  --color-primary-900: oklch(0.38 0.11 220);
+
+  /* accent · orange (hue 55) */
+  --color-accent-50:  oklch(0.975 0.022 60);
+  --color-accent-100: oklch(0.95 0.055 60);
+  --color-accent-300: oklch(0.86 0.1 55);
+  --color-accent-500: oklch(0.76 0.15 55);
+  --color-accent-700: oklch(0.6 0.14 50);
+  --color-accent-900: oklch(0.42 0.12 48);
+
+  /* success · green (hue 145) */
+  --color-success-50:  oklch(0.975 0.02 145);
+  --color-success-100: oklch(0.95 0.045 145);
+  --color-success-300: oklch(0.85 0.085 145);
+  --color-success-500: oklch(0.7 0.14 145);
+  --color-success-700: oklch(0.52 0.12 145);
+  --color-success-900: oklch(0.4 0.1 145);
+
+  /* warning · gold (hue 73) — pushed off the olive-leaning 84° down to
+   * 73° (proper amber/gold), with chroma boosted so it doesn't read muddy. */
+  --color-warning-50:  oklch(0.98 0.04 75);
+  --color-warning-100: oklch(0.955 0.085 74);
+  --color-warning-300: oklch(0.86 0.14 73);
+  --color-warning-500: oklch(0.8 0.17 73);
+  --color-warning-700: oklch(0.62 0.15 68);
+  --color-warning-900: oklch(0.45 0.12 65);
+
+  /* danger · ruby red (hue 27) — deeper lightness + higher chroma than
+   * the previous mix so it reads as confident red instead of pink. */
+  --color-danger-50:  oklch(0.975 0.025 27);
+  --color-danger-100: oklch(0.95 0.05 27);
+  --color-danger-300: oklch(0.83 0.13 27);
+  --color-danger-500: oklch(0.58 0.22 27);
+  --color-danger-700: oklch(0.46 0.18 27);
+  --color-danger-900: oklch(0.36 0.14 27);
+
+  /* Aliases used by existing components so we don't rewrite every rule.
+   * Map old names → scale steps:
+   *   X         → X-500  (brand color, CTA fill)
+   *   X-edge    → X-700  (hover / chunky button shadow)
+   *   X-tint    → X-100  (badge / callout fill)
+   *   X-ink     → X-700  (text on white paper / on tint label) */
+  --color-primary: var(--color-primary-500);
+  --color-primary-edge: var(--color-primary-700);
+  --color-primary-tint: var(--color-primary-100);
+  --color-primary-ink: var(--color-primary-700);
+
+  --color-accent: var(--color-accent-500);
+  --color-accent-edge: var(--color-accent-700);
+  --color-accent-tint: var(--color-accent-100);
+  --color-accent-ink: var(--color-accent-700);
+
+  --color-success: var(--color-success-500);
+  --color-success-edge: var(--color-success-700);
+  --color-success-tint: var(--color-success-100);
+  --color-success-ink: var(--color-success-700);
+
+  --color-warning: var(--color-warning-500);
+  --color-warning-edge: var(--color-warning-700);
+  --color-warning-tint: var(--color-warning-100);
+  --color-warning-ink: var(--color-warning-900);  /* amber needs deeper text */
+
+  --color-danger: var(--color-danger-500);
+  --color-danger-edge: var(--color-danger-700);
+  --color-danger-tint: var(--color-danger-100);
+  --color-danger-ink: var(--color-danger-700);
+
+  /* Code surface.
+   *   block bg  — near-white so the code panel reads as a clean sheet
+   *               *floating above* the cream paper, not a dirty gray
+   *               inset cut into it. Paired with a hairline + 1px
+   *               drop shadow for "this is elevated, on top".
+   *   inline bg — barely-cyan chip so it doesn't shout
+   *   inline fg — Tailwind's cyan-600 in OKLCH (the value the user
+   *               vetted before); reads as confident cyan text on a
+   *               quiet tint. */
+  --color-code-bg: oklch(0.99 0 0);
+  --color-code-inline-bg: oklch(0.955 0.02 218);
+  --color-code-inline-fg: oklch(0.609 0.126 222);
+
+  /* Body copy is set in 思源宋体 / Noto Serif SC (loaded from Google Fonts
+   * in the page head), with system CJK serifs as the offline fallback.
+   * Code keeps its own monospace stack. */
+  --font-serif:
+    "Noto Serif SC", "Songti SC", "STSong", "Source Han Serif SC",
+    Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  /* Noto Serif SC reads thin on screen at 400; 500 gives body copy a bit
+   * more presence without tipping into bold. */
+  font-weight: 500;
+  font-feature-settings: "kern", "liga", "calt";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Reading column ─────────────────────────────────────────────────── */
+
+.column {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 4.5rem 1.5rem 6rem;
+  position: relative;
+  z-index: 1;
+}
+
+.column.wide {
+  max-width: 56rem;
+}
+
+/* ── Prose / markdown surface ──────────────────────────────────────── */
+
+.prose {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+.prose > * + * {
+  margin-top: 1.15em;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--color-ink);
+}
+
+.prose h1 {
+  font-size: 2.5rem;
+  line-height: 1.15;
+  letter-spacing: -0.022em;
+  margin-top: 0;
+}
+
+.prose h2 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  margin-top: 2.75em;
+  margin-bottom: 0.4em;
+}
+
+.prose h3 {
+  font-size: 1.18rem;
+  line-height: 1.4;
+  margin-top: 2em;
+}
+
+.prose .lede {
+  font-size: 1.2rem;
+  line-height: 1.65;
+  color: var(--color-ink-soft);
+}
+
+.prose a {
+  color: var(--color-primary);
+  text-decoration: none;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  font-weight: 500;
+}
+.prose a:hover {
+  text-decoration: underline;
+}
+
+.prose strong {
+  /* Body is 500, so bold needs to jump to 700 to read as clearly heavier. */
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--color-code-inline-bg);
+  color: var(--color-code-inline-fg);
+  padding: 0.14em 0.45em;
+  border-radius: 0.35em;
+}
+
+/* Code block — rendered by Astro's <Code> (Shiki, github-light theme).
+ *
+ * Shiki writes inline `style="color: …"` on each token plus a hard-coded
+ * background on `<pre>`. We override the bg to land on our neutral paper
+ * inset; line numbers are pure CSS counters on `.line`, no transformer
+ * needed. */
+.prose pre,
+.prose pre.astro-code {
+  background: var(--color-code-bg) !important;
+  border: 1px solid var(--color-rule-soft);
+  border-radius: 0.8rem;
+  padding: 0.85rem 0;
+  overflow-x: auto;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  /* Barely-there elevation — just enough to read as "floating sheet"
+   * instead of "cut hole in the paper". */
+  box-shadow: 0 1px 0 0 oklch(0.88 0 0 / 0.45);
+}
+.prose pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--color-ink);
+  display: block;
+  counter-reset: line;
+}
+/* Each line is its own block so vertical spacing is governed by
+ * `line-height` alone (we strip the inter-line `\n` via the
+ * `stripLineNewlines` Shiki transformer). The line number is the
+ * line's `::before`, set to `position: sticky; left: 0` so it pins
+ * to the gutter while long code lines scroll under it horizontally. */
+.prose pre.astro-code .line {
+  display: block;
+  padding-right: 1.25rem;
+}
+.prose pre.astro-code .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  position: sticky;
+  left: 0;
+  width: 2.4rem;
+  padding: 0 0.85rem 0 1rem;
+  margin-right: 0.55rem;
+  text-align: right;
+  color: var(--color-muted);
+  background: var(--color-code-bg);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.7;
+  z-index: 1;
+}
+/* Shiki emits a trailing empty `.line` for source ending in `\n`. Hide it. */
+.prose pre.astro-code .line:last-child:empty {
+  display: none;
+}
+
+/* Code block card — Carbon-style window chrome (CodeBlock.astro).
+ *
+ * The <figure> owns the border / radius / overflow / shadow so the
+ * title bar and the highlighted <pre> read as one rounded card. The
+ * bar is *seamless* with the code area (same near-white bg, no drab
+ * gray strip, no divider) — the window character comes entirely from
+ * the three traffic-light dots on the left, à la carbon.now.sh. The
+ * filename is centered; the copy control is an icon-only button. */
+.code-block {
+  margin: 1.75rem 0;
+  border: 1px solid var(--color-rule-soft);
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: var(--color-code-bg);
+  box-shadow:
+    0 1px 2px oklch(0.7 0 0 / 0.05),
+    0 10px 30px oklch(0.55 0.02 245 / 0.07);
+}
+.code-block__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 2.4rem;
+  padding: 0 0.7rem 0 1.1rem;
+  margin-bottom: -0.45rem;
+  background: var(--color-code-bg);
+}
+
+/* Traffic lights. Tinted with the design's own semantic hues
+ * (danger / warning / success) rather than the literal macOS colors,
+ * so they sit in-palette. Faint inner ring + highlight gives them a
+ * touch of dimension on the near-white bar instead of reading flat. */
+.code-block__dots {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+.code-block__dots i {
+  width: 0.74rem;
+  height: 0.74rem;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 0.5px oklch(0 0 0 / 0.12),
+    inset 0 1.5px 1px oklch(1 0 0 / 0.35);
+}
+.code-block__dots i:nth-child(1) { background: var(--color-danger-500); }
+.code-block__dots i:nth-child(2) { background: var(--color-warning-500); }
+.code-block__dots i:nth-child(3) { background: var(--color-success-500); }
+
+.code-block__title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 60%;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: -0.01em;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-block__copy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.code-block__copy:hover {
+  color: var(--color-ink);
+}
+.code-block__copy:active {
+  transform: translateY(0.5px);
+}
+.code-block__copy:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--color-primary) 40%, transparent);
+  outline-offset: 1px;
+}
+.code-block__icon {
+  display: block;
+}
+/* Icon swap on the copied state. Default shows the copy glyph;
+ * `.is-copied` (toggled by JS for ~1.6s) shows the check + success ink. */
+.code-block__icon--check {
+  display: none;
+}
+.code-block__copy.is-copied {
+  color: var(--color-success-700);
+}
+.code-block__copy.is-copied .code-block__icon--copy {
+  display: none;
+}
+.code-block__copy.is-copied .code-block__icon--check {
+  display: block;
+}
+/* Flatten the inner <pre> — the figure is the card now. The bar is
+ * seamless, so the pre also loses its own top padding's worth of gap
+ * by simply continuing the same background. */
+.code-block pre,
+.code-block pre.astro-code {
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+/* Shiki adds tabindex=0 to <pre> for keyboard scrolling; the UA focus
+ * ring follows the OS accent (orange on some Macs). Swap it for our cyan
+ * ring on keyboard focus and drop it entirely for mouse focus. */
+.code-block pre:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--color-primary) 40%, transparent);
+  outline-offset: -2px;
+}
+.code-block pre:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Pull-quote: neutral paper-tone background, hanging open-quote glyph
+ * in cyan. The bg is achromatic (no color), the glyph carries the only
+ * visual signal that this is a quote. */
+.prose blockquote {
+  position: relative;
+  margin: 1.75rem 0;
+  padding: 1rem 1.35rem 1rem 3.2rem;
+  background: var(--color-paper-2);
+  border-radius: 0.75rem;
+  font-size: 1.04em;
+  line-height: 1.65;
+  color: var(--color-ink-soft);
+}
+.prose blockquote::before {
+  content: "\201C";
+  position: absolute;
+  left: 1rem;
+  top: 0.5rem;
+  /* Pin a Latin serif so the glyph's metrics don't shift with the body
+   * font — Noto Serif SC renders this as a full-width quote that sits
+   * in a different place. Georgia gives a stable typographic quote. */
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 3.2em;
+  line-height: 1;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.prose blockquote p {
+  margin: 0;
+}
+.prose blockquote p + p {
+  margin-top: 0.6em;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.5rem;
+}
+.prose ul {
+  list-style: disc;
+}
+.prose ol {
+  list-style: decimal;
+}
+.prose li::marker {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.prose li + li {
+  margin-top: 0.3em;
+}
+.prose li > ul,
+.prose li > ol {
+  margin-top: 0.3em;
+}
+
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--color-rule);
+  margin: 3rem auto;
+  width: 5rem;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  font-feature-settings: "tnum";
+}
+.prose th,
+.prose td {
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--color-rule-soft);
+}
+.prose th {
+  font-weight: 600;
+  border-bottom-color: var(--color-rule);
+  color: var(--color-ink);
+}
+.prose tr:last-child td {
+  border-bottom-color: var(--color-rule);
+}
+
+/* Row hover only — no transition, no column highlight. */
+.prose tbody tr:hover td {
+  background: var(--color-paper-2);
+}
+
+/* ── UI primitives — Duolingo-flavored "chunky" buttons.
+ *
+ * The signature trick: a hard, un-blurred drop-shadow that reads as a
+ * darker bottom edge. On :active the shadow collapses and the button
+ * translates down by the same amount, so it physically "presses" into
+ * the page without any layout shift.
+ *
+ * Every variant just rebinds four CSS variables — bg / edge / fg / press —
+ * so adding a new tone is one block, not one ruleset per state.
+ * ─────────────────────────────────────────────────────────────────── */
+
+.btn {
+  --btn-bg: var(--color-paper);
+  --btn-edge: var(--color-rule);
+  --btn-fg: var(--color-ink);
+  --btn-press: 3px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: 1.5px solid var(--btn-edge);
+  box-shadow: 0 var(--btn-press) 0 0 var(--btn-edge);
+  cursor: pointer;
+  transition:
+    transform 0.06s ease,
+    box-shadow 0.06s ease,
+    background-color 0.15s ease;
+  user-select: none;
+}
+
+.btn:hover {
+  background: color-mix(in oklch, var(--btn-bg) 92%, var(--color-ink) 8%);
+}
+
+.btn:active {
+  transform: translateY(var(--btn-press));
+  box-shadow: 0 0 0 0 var(--btn-edge);
+}
+
+.btn:focus-visible {
+  outline: 3px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
+  outline-offset: 3px;
+}
+
+/* Colored CTAs — uniform shape across the family:
+ *   bg  = -500   (solid CTA fill, same step for every tone)
+ *   edge = -700  (chunky bottom shadow + active text)
+ *   fg  = -50    (lightest same-family tint, "white with personality")
+ *
+ * Warning is the one exception: amber-500 sits at lightness 0.8, so
+ * a same-family light text (-50 at 0.98) has only 0.18 lightness
+ * delta — well below readable contrast. Amber's physics force a flip:
+ * stay on -500 for visual consistency with siblings, but use the same
+ * family's deep step (-900) for the text. */
+.btn-primary {
+  --btn-bg: var(--color-primary-500);
+  --btn-edge: var(--color-primary-700);
+  --btn-fg: var(--color-primary-50);
+  border-color: var(--btn-bg);
+}
+.btn-primary:hover {
+  background: color-mix(in oklch, var(--color-primary-500) 92%, white);
+}
+
+.btn-accent {
+  --btn-bg: var(--color-accent-500);
+  --btn-edge: var(--color-accent-700);
+  --btn-fg: var(--color-accent-50);
+  border-color: var(--btn-bg);
+}
+.btn-accent:hover {
+  background: color-mix(in oklch, var(--color-accent-500) 92%, white);
+}
+
+.btn-success {
+  --btn-bg: var(--color-success-500);
+  --btn-edge: var(--color-success-700);
+  --btn-fg: var(--color-success-50);
+  border-color: var(--btn-bg);
+}
+.btn-success:hover {
+  background: color-mix(in oklch, var(--color-success-500) 92%, white);
+}
+
+.btn-warning {
+  --btn-bg: var(--color-warning-500);
+  --btn-edge: var(--color-warning-700);
+  --btn-fg: var(--color-warning-50);
+  border-color: var(--btn-bg);
+}
+.btn-warning:hover {
+  background: color-mix(in oklch, var(--color-warning-500) 92%, white);
+}
+
+.btn-danger {
+  --btn-bg: var(--color-danger-500);
+  --btn-edge: var(--color-danger-700);
+  --btn-fg: var(--color-danger-50);
+  border-color: var(--btn-bg);
+}
+.btn-danger:hover {
+  background: color-mix(in oklch, var(--color-danger-500) 92%, white);
+}
+
+/* Ghost / Cancel — same chunky body as the colored CTAs, just in
+ * neutrals. Sits next to a colored primary as the "back out" sibling. */
+.btn-ghost {
+  --btn-bg: var(--color-paper);
+  --btn-edge: var(--color-rule);
+  --btn-fg: var(--color-ink-soft);
+}
+.btn-ghost:hover {
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+}
+
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Badges — soft tinted pills.
+ *
+ * Hand-picked OKLCH for bg/text per tone (not color-mix) so the result is
+ * a clean pastel + saturated ink, never muddy. Default badge stays
+ * achromatic to keep noisy lists calm. */
+
+.badge {
+  --badge-bg: var(--color-paper-3);
+  --badge-fg: var(--color-ink-soft);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+}
+
+.badge-primary { --badge-bg: var(--color-primary-tint); --badge-fg: var(--color-primary-ink); }
+.badge-accent  { --badge-bg: var(--color-accent-tint);  --badge-fg: var(--color-accent-ink);  }
+.badge-success { --badge-bg: var(--color-success-tint); --badge-fg: var(--color-success-ink); }
+.badge-warning { --badge-bg: var(--color-warning-tint); --badge-fg: var(--color-warning-ink); }
+.badge-danger  { --badge-bg: var(--color-danger-tint);  --badge-fg: var(--color-danger-ink);  }
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  padding: 0.12em 0.5em;
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-rule);
+  border-bottom-width: 2px;
+  border-radius: 0.45rem;
+  color: var(--color-ink-soft);
+  line-height: 1.4;
+}
+
+/* ── Form controls — same "printed paper" feel as .btn ───────────────
+ *
+ * Text input / textarea / select share `.field`: a 1.5px ruled box with a
+ * thin chunky drop, focusing to a cyan edge + soft cyan ring. Radio / checkbox
+ * are button-like chips (`.choice`) that fill soft-cyan when selected and
+ * carry an inner circle (radio) or check (checkbox) so single- vs multi-select
+ * stays legible. Pure CSS, no component — match the `.btn` API style. */
+
+.field {
+  display: block;
+  width: 100%;
+  padding: 0.34rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  border: 1.5px solid var(--color-rule);
+  border-radius: 0.55rem;
+  box-shadow: 0 2px 0 0 var(--color-rule);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+  outline: none;
+}
+.field::placeholder {
+  color: var(--color-muted);
+}
+.field:hover {
+  border-color: color-mix(in oklch, var(--color-rule) 60%, var(--color-ink));
+}
+.field:focus {
+  border-color: var(--color-primary-500);
+  box-shadow:
+    0 2px 0 0 var(--color-primary-500),
+    0 0 0 3px color-mix(in oklch, var(--color-primary) 22%, transparent);
+}
+.field[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+textarea.field {
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* Dropdown: native <select> + `.field` + this for the custom chevron. */
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 0.95rem;
+}
+
+/* Radio / checkbox chip group. */
+.choice-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.choice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  background: var(--color-paper);
+  border: 1.5px solid var(--color-rule);
+  box-shadow: 0 2px 0 0 var(--color-rule);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    transform 0.06s ease,
+    box-shadow 0.06s ease,
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+.choice:hover {
+  background: color-mix(in oklch, var(--color-paper) 92%, var(--color-ink) 8%);
+}
+.choice:active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 0 var(--color-rule);
+}
+
+/* The real input drives state + a11y but is visually replaced by `.choice__mark`. */
+.choice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.choice__mark {
+  display: inline-grid;
+  place-items: center;
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: none;
+  background: var(--color-paper);
+  border: 1.5px solid var(--color-rule);
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.choice--radio .choice__mark {
+  border-radius: 999px;
+}
+.choice--check .choice__mark {
+  border-radius: 0.35rem;
+}
+
+/* Selected: soft cyan chip (not a solid CTA) with a cyan edge + chunky drop. */
+.choice:has(input:checked) {
+  background: var(--color-primary-tint);
+  border-color: var(--color-primary-500);
+  color: var(--color-primary-ink);
+  box-shadow: 0 2px 0 0 var(--color-primary-500);
+}
+.choice:has(input:checked) .choice__mark {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+}
+.choice--radio:has(input:checked) .choice__mark::after {
+  content: "";
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 999px;
+  background: var(--color-primary-50);
+}
+.choice--check:has(input:checked) .choice__mark::after {
+  content: "";
+  width: 0.26rem;
+  height: 0.48rem;
+  margin-top: -2px;
+  border: solid var(--color-primary-50);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.choice:has(input:focus-visible) {
+  outline: 3px solid color-mix(in oklch, var(--color-primary) 35%, transparent);
+  outline-offset: 3px;
+}
+.choice:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Callouts — soft tint surface, no border, no bar.
+ *
+ * The label (small caps in the matching `ink` color) is the entire
+ * visual cue that this block is set apart. Cleaner than a vertical bar
+ * on every block. */
+
+.callout {
+  --cl-bg: var(--color-paper-2);
+  --cl-ink: var(--color-ink-soft);
+
+  margin: 0.9rem 0;
+  padding: 0.95rem 1.2rem;
+  border-radius: 0.75rem;
+  background: var(--cl-bg);
+  font-size: 0.97rem;
+  line-height: 1.65;
+  color: var(--color-ink);
+}
+.callout > :first-child { margin-top: 0; }
+.callout > :last-child  { margin-bottom: 0; }
+
+.callout-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cl-ink);
+  margin-bottom: 0.4rem;
+}
+.callout-label svg {
+  /* lucide icon: sits on the cap-height line, inherits `--cl-ink`. */
+  flex-shrink: 0;
+}
+
+.callout-primary { --cl-bg: var(--color-primary-tint); --cl-ink: var(--color-primary-ink); }
+.callout-accent  { --cl-bg: var(--color-accent-tint);  --cl-ink: var(--color-accent-ink);  }
+.callout-success { --cl-bg: var(--color-success-tint); --cl-ink: var(--color-success-ink); }
+.callout-warning { --cl-bg: var(--color-warning-tint); --cl-ink: var(--color-warning-ink); }
+.callout-danger  { --cl-bg: var(--color-danger-tint);  --cl-ink: var(--color-danger-ink);  }
+
+/* Registered so WAAPI can interpolate it as a number. Drives the alpha
+ * of `.receipt-slot`'s box-shadow (see below), letting us animate the
+ * shadow's visibility on its own curve — independent of the receipt's
+ * transform/height, which ride a near-linear polaroid curve. The numeric
+ * type is also what lets calc() use it inside oklch()'s alpha slot. */
+@property --shadow-alpha {
+  syntax: "<number>";
+  initial-value: 1;
+  inherits: false;
+}
+
+/* ── Accordion — "小票 / receipt" style.
+ *
+ *   The `<summary>` is a flat printer-head card. The opened body is
+ *   a *separate* slip of paper that prints out from underneath:
+ *   slightly narrower, monospace-set, with a soft drop shadow. The
+ *   summary and the receipt are visually disjoint sheets, not one
+ *   continuous card.
+ *
+ *   Architecture (intentionally flat after several rewrites):
+ *
+ *     • `.receipt-slot` *is* the paper. It has the paper-gradient
+ *       background, the cool-tinted box-shadow, and an
+ *       `overflow: hidden` that clips the body while it's
+ *       translated above y=0. Crucially the slot's own box-shadow
+ *       is painted on the slot's own paint layer — `overflow:
+ *       hidden` only clips descendants, not the element's own
+ *       shadow — so the shadow always escapes the clip.
+ *     • `.accordion-body` is just the text content layer. No mask,
+ *       no filter, no shadow of its own. Pure transform animation.
+ *
+ *   Earlier iterations used `mask` for a sawtooth bottom edge and
+ *   `filter: drop-shadow` on the body. That painted the shadow
+ *   *inside* the slot's coordinate system, which `overflow: hidden`
+ *   then ate. Working around it (clip-path with negative inset, etc.)
+ *   was fragile across browsers, so the sawtooth was dropped in favor
+ *   of a clean rectangular sheet — the receipt character now comes
+ *   from the mono type, narrow width, and print-out motion alone. */
+
+/* `.accordion` is the <details> root (one component = one collapsible).
+ * Consecutive accordions tuck close together; isolated ones get normal
+ * block spacing from the surrounding flow. */
+.accordion {
+  position: relative;
+  margin: 1.5rem 0;
+}
+.accordion + .accordion {
+  margin-top: 0.7rem;
+}
+
+.accordion > summary {
+  list-style: none;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px solid var(--color-rule);
+  border-radius: 0;
+  padding: 0.85rem 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-weight: 500;
+  font-size: 1.01rem;
+  color: var(--color-ink);
+  user-select: none;
+  transition:
+    color 0.18s ease,
+    border-bottom-color 0.18s ease;
+}
+.accordion > summary::-webkit-details-marker { display: none; }
+.accordion > summary:hover { color: var(--color-primary-700); }
+.accordion > summary::after {
+  content: "";
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  color: var(--color-muted);
+  transform: rotate(45deg) translate(-15%, -15%);
+  transition:
+    transform 0.32s cubic-bezier(0.34, 1.5, 0.64, 1),
+    color 0.18s ease;
+}
+.accordion[open] > summary {
+  color: var(--color-primary-700);
+  border-bottom-color: var(--color-primary-300);
+}
+.accordion[open] > summary::after {
+  transform: rotate(-135deg) translate(-15%, -15%);
+  color: var(--color-primary);
+}
+
+/* The receipt itself.
+ *
+ * Owns:
+ *   • The paper-gradient background — `slot` is the paper.
+ *   • `overflow: hidden` to clip the body while it's translated
+ *     above y=0 (so the body stays hidden behind the summary).
+ *   • The cool-tinted box-shadow, with alpha keyed to
+ *     `--shadow-alpha`. Because box-shadow lives on the slot's
+ *     own paint layer (not its descendants), `overflow: hidden`
+ *     on the slot does *not* clip its own shadow — the shadow
+ *     extends out into the page just fine.
+ *
+ * The `::before` at the top is a tiny dark band that reads as the
+ * "mouth" of a thermal printer: the paper looks like it's coming
+ * from *underneath* something, not just appearing on top. */
+.receipt-slot {
+  --receipt-width: 96%;
+  width: var(--receipt-width);
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+
+  /* Real paper isn't one flat tone — a faint vertical lighting
+   * gradient (top catches more light). Range is tiny (0.999 →
+   * 0.987) so it never reads as "tinted", just *present*. */
+  background: linear-gradient(
+    to bottom,
+    oklch(0.999 0 0) 0%,
+    oklch(0.993 0 0) 55%,
+    oklch(0.987 0 0) 100%
+  );
+
+  /* Three-layer cool-tinted shadow. Hue 225 rhymes with the page's
+   * cyan accent without reading as colored. Each layer's alpha is
+   * multiplied by `--shadow-alpha` so JS can fade the shadow in
+   * and out on its own ease-in-out curve (see design.astro), while
+   * the transform/height ride a near-linear polaroid curve.
+   *
+   *   1. Contact   — 1px blur, barely-there edge hint.
+   *   2. Lift      — 4/10px soft falloff, very light depth.
+   *   3. Ambient   — 12/24px haze, just enough to lift off the page. */
+  box-shadow:
+    0 1px 2px   oklch(0.5 0.012 225 / calc(0.10 * var(--shadow-alpha))),
+    0 4px 10px  oklch(0.45 0.01 225 / calc(0.06 * var(--shadow-alpha))),
+    0 12px 24px oklch(0.4 0.008 225 / calc(0.04 * var(--shadow-alpha)));
+}
+.receipt-slot::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 9px;
+  z-index: 2;
+  pointer-events: none;
+  /* Printer "mouth": a sharper seam at the very top, fading into a
+   * soft band, then to nothing. */
+  background: linear-gradient(
+    to bottom,
+    oklch(0.32 0.015 225 / 0.34) 0%,
+    oklch(0.45 0.012 225 / 0.18) 38%,
+    oklch(0.62 0.008 225 / 0.06) 72%,
+    transparent 100%
+  );
+}
+
+.accordion-body {
+  padding: 1.05rem 1.25rem 1.5rem;
+  color: var(--color-ink-soft);
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  line-height: 1.7;
+  background: transparent;
+}
+.accordion-body > :first-child { margin-top: 0; }
+.accordion-body > :last-child  { margin-bottom: 0; }
+/* Open and close are both driven by the Web Animations API in
+ * `Accordion.astro`. Doing both directions through WAAPI gives one
+ * cancellation surface and predictable restarts, dodging the "CSS
+ * @keyframes won't re-fire on the second [open]" gotcha. */
+
+/* ── Tabs — sliding underline indicator.
+ *
+ *   The active tab does *not* draw its own bottom border — that
+ *   would teleport instantly between tabs. Instead the `.tabs`
+ *   element owns a single `::after` rectangle positioned via two
+ *   custom properties (`--tab-x` / `--tab-w`) which JS updates on
+ *   selection. The transition curve is ease-out-back, so the bar
+ *   overshoots slightly before settling — that's the "spring"
+ *   the user asked for, no library needed.
+ *
+ *   `aria-selected` drives text styling so the markup stays
+ *   accessible; JS only toggles the attribute and updates the
+ *   two CSS variables. */
+
+.tabs {
+  position: relative;
+  display: flex;
+  gap: 0;
+  margin: 1.25rem 0 0;
+  border-bottom: 1px solid var(--color-rule);
+}
+.tabs::after {
+  content: "";
+  position: absolute;
+  left: var(--tab-x, 0);
+  bottom: -1px;
+  width: var(--tab-w, 0);
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  pointer-events: none;
+  transition:
+    left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tab {
+  font: inherit;
+  font-weight: 500;
+  font-size: 0.94rem;
+  background: transparent;
+  border: 0;
+  padding: 0.55rem 0.95rem 0.75rem;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+.tab:hover { color: var(--color-ink); }
+.tab[aria-selected="true"] { color: var(--color-primary-700); }
+.tab:focus-visible {
+  outline: 2px solid var(--color-primary-300);
+  outline-offset: 3px;
+  border-radius: 0.3rem;
+}
+
+.tab-panels { margin-top: 0.4rem; }
+.tab-panel[hidden] { display: none; }
+.tab-panel > :first-child { margin-top: 0.6rem; }
+.tab-panel > :last-child  { margin-bottom: 0; }
+
+/* ── Site frame (header / footer for the sandbox) ─────────────────── */
+
+.site-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem;
+  font-size: 0.82rem;
+  color: var(--color-ink-soft);
+}
+.site-bar a {
+  color: inherit;
+  text-decoration: none;
+}
+.site-bar a:hover {
+  color: var(--color-ink);
+}
+.site-tag {
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* ── Palette ramps — one row per tone, 6 chips per row. ─────────── */
+
+.ramp {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+  gap: 0;
+  margin: 0.8rem 0 1.6rem;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  border: 1px solid var(--color-rule-soft);
+}
+.ramp-chip {
+  position: relative;
+  height: 3.6rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding: 0.4rem 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
+}
+.ramp-chip > span {
+  opacity: 0.85;
+}
+
+/* ── Math — KaTeX. Server-rendered at build time, no client JS.
+ *
+ * KaTeX ships its own CSS (imported from the page frontmatter). We only
+ * nudge the display container's vertical rhythm so it sits inside the
+ * prose flow instead of feeling like a foreign island. */
+.prose .katex-display {
+  margin: 1.6rem 0;
+  padding: 0.25rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* ── Misc helpers used inline on the demo page ────────────────────── */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+/* Specimen-only layout for the form-controls demo. */
+.form-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 30rem;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.form-row__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}

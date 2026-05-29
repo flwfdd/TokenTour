@@ -25,6 +25,13 @@ export default defineConfig({
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
+    // Force a single React instance across the app and pre-bundled deps.
+    // recharts pulls React through its own module graph; without dedupe the
+    // SSR optimizer can end up with a second copy, surfacing as "Invalid
+    // hook call / Cannot read properties of null (reading 'useState')".
+    resolve: {
+      dedupe: ["react", "react-dom"],
+    },
     optimizeDeps: {
       // Pre-bundle deps that would otherwise be discovered one-by-one on the
       // first SSR request. With the Cloudflare adapter's workerd runtime,
@@ -39,11 +46,13 @@ export default defineConfig({
         "react-dom",
         "react-dom/client",
         "nanoid",
+        "lucide-react",
         "zustand",
         "zustand/middleware",
         "@huggingface/jinja",
         "gpt-tokenizer/encoding/cl100k_base",
         "gpt-tokenizer/encoding/o200k_harmony",
+        "recharts",
       ],
       // Pulled in by the client-side tokenizer loader; keep it out of the
       // dev pre-bundle to avoid bundling its heavy ONNX backend.

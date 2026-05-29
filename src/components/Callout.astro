@@ -1,0 +1,54 @@
+---
+// Callout / admonition — soft tinted surface, optionally titled.
+//
+// `type` picks the color (via the `.callout-<type>` class) and the
+// lucide icon. `note` is the neutral/achromatic default with no modifier
+// class. `title` is optional — when omitted there's no label row at all
+// (the tint alone signals the type); when present, the icon + title sit
+// on their own line above the body.
+import {
+  Info,
+  Lightbulb,
+  Zap,
+  CircleCheck,
+  TriangleAlert,
+  OctagonAlert,
+} from "@lucide/astro";
+
+type CalloutType =
+  | "note"
+  | "primary"
+  | "accent"
+  | "success"
+  | "warning"
+  | "danger";
+
+interface Props {
+  type?: CalloutType;
+  title?: string;
+}
+
+const { type = "note", title } = Astro.props;
+
+const ICONS: Record<CalloutType, typeof Info> = {
+  note: Info,
+  primary: Lightbulb,
+  accent: Zap,
+  success: CircleCheck,
+  warning: TriangleAlert,
+  danger: OctagonAlert,
+};
+
+const Icon = ICONS[type];
+const className = type === "note" ? "callout" : `callout callout-${type}`;
+---
+
+<div class={className}>
+  {title && (
+    <span class="callout-label">
+      <Icon size={15} strokeWidth={2.2} aria-hidden="true" />
+      {title}
+    </span>
+  )}
+  <slot />
+</div>

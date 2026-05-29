@@ -1,0 +1,78 @@
+---
+// Tabs with a sliding underline indicator.
+//
+// Pass the tab labels as `labels`; provide each panel's content through a
+// numbered slot matching its index:
+//
+//   <Tabs labels={["TS", "Py"]}>
+//     <Fragment slot="0">…</Fragment>
+//     <Fragment slot="1">…</Fragment>
+//   </Tabs>
+//
+// The indicator can't be pure CSS (it needs a sibling tab's geometry), so
+// a small script measures the active tab into `--tab-x` / `--tab-w` and
+// re-anchors on resize + font load. Panels toggle via `hidden`; with JS
+// off, the first panel stays visible.
+interface Props {
+  labels: string[];
+  label?: string;
+}
+const { labels, label } = Astro.props;
+const ids = labels.map((_, i) => String(i));
+
+// `<slot name>` must be a static string, so we can't template it in a
+// loop. `Astro.slots.render(name)` *does* accept a dynamic name, so we
+// pre-render each numbered slot to HTML and inject it below.
+const panels = await Promise.all(ids.map((id) => Astro.slots.render(id)));
+---
+
+<div class="tabs" role="tablist" aria-label={label}>
+  {labels.map((text, i) => (
+    <button class="tab" role="tab" aria-selected={i === 0} data-tab={ids[i]}>
+      {text}
+    </button>
+  ))}
+</div>
+<div class="tab-panels">
+  {panels.map((html, i) => (
+    <div class="tab-panel" data-panel={ids[i]} role="tabpanel" hidden={i !== 0}>
+      <Fragment set:html={html} />
+    </div>
+  ))}
+</div>
+
+<script>
+  for (const tabsEl of document.querySelectorAll<HTMLElement>(".tabs")) {
+    const panelsEl = tabsEl.nextElementSibling;
+    if (!(panelsEl instanceof HTMLElement) || !panelsEl.classList.contains("tab-panels")) {
+      continue;
+    }
+    const tabs = [...tabsEl.querySelectorAll<HTMLButtonElement>(".tab")];
+    const panels = [...panelsEl.querySelectorAll<HTMLElement>(".tab-panel")];
+
+    const move = (active: HTMLElement) => {
+      tabsEl.style.setProperty("--tab-x", `${active.offsetLeft}px`);
+      tabsEl.style.setProperty("--tab-w", `${active.offsetWidth}px`);
+    };
+    const reanchor = () => {
+      const active =
+        tabsEl.querySelector<HTMLElement>('.tab[aria-selected="true"]') ?? tabs[0];
+      if (active) move(active);
+    };
+
+    requestAnimationFrame(reanchor);
+    document.fonts?.ready.then(reanchor);
+    new ResizeObserver(reanchor).observe(tabsEl);
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const key = tab.dataset.tab;
+        tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+        panels.forEach((p) => {
+          p.hidden = p.dataset.panel !== key;
+        });
+        move(tab);
+      });
+    });
+  }
+</script>

@@ -1,5 +1,5 @@
 import type { TokenInfo, TokenSegment } from "./lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR } from "./visual";
+import { SEG_LABEL, SEG_ROLE_VAR, roleSurfaceStyle } from "./visual";
 
 /**
  * Display order for the role chips. `control` is intentionally absent —
@@ -58,7 +58,7 @@ interface Props {
 export default function RoleLegend({ counts, hoverRole, onHoverChange, label }: Props) {
   return (
     <div
-      className="flex flex-wrap items-center gap-1"
+      className="flex flex-wrap items-center gap-1 text-[11px]"
       onMouseLeave={() => onHoverChange(null)}
     >
       {label && <span className="text-(--color-muted)">{label}</span>}
@@ -71,16 +71,12 @@ export default function RoleLegend({ counts, hoverRole, onHoverChange, label }: 
             key={seg}
             onMouseEnter={() => onHoverChange(seg)}
             onClick={() => onHoverChange(active ? null : seg)}
-            className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 transition"
-            style={{
-              borderColor: active
-                ? `var(${SEG_ROLE_VAR[seg]})`
-                : "var(--color-border)",
-              backgroundColor: active
-                ? `color-mix(in oklch, var(${SEG_ROLE_VAR[seg]}) 20%, transparent)`
-                : undefined,
-              color: active ? `var(${SEG_ROLE_VAR[seg]})` : undefined,
-            }}
+            className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5"
+            style={
+              active
+                ? { ...roleSurfaceStyle(seg, { hovered: true, border: true }), color: `var(${SEG_ROLE_VAR[seg]})` }
+                : { backgroundColor: "var(--color-surface-2)", border: "1px solid transparent" }
+            }
           >
             <span
               className="inline-block h-2 w-2 rounded-sm"
