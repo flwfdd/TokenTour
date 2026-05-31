@@ -1,0 +1,313 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * Prefix-cache mini-demo (PrefixCacheLab.astro) — topic-specific (chat2token),
+ * NOT part of the shared design system. Plain (global) stylesheet because the
+ * token chips are built as raw HTML by the client script and never receive
+ * Astro's scoping attribute.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.pcache {
+  margin: 1.75rem 0;
+  padding: 1.1rem 1.25rem 1rem;
+  background: oklch(1 0 0);
+  border-radius: 0.9rem;
+}
+
+.pcache__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+.pcache__title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--color-ink);
+}
+.pcache__status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  color: var(--color-ink-soft);
+  background: var(--color-paper-2);
+  white-space: nowrap;
+}
+.pcache__status.is-full {
+  color: var(--color-success-ink, #1c6b3f);
+  background: var(--color-success-tint, oklch(0.95 0.06 150));
+}
+.pcache__status.is-partial {
+  color: color-mix(in oklch, var(--color-warning-500) 55%, black);
+  background: color-mix(in oklch, var(--color-warning-500) 18%, white);
+}
+
+/* Input + cache button. */
+.pcache__bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+.pcache__field {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+.pcache .pcache__field:hover {
+  border-color: var(--color-primary-500);
+}
+.pcache__save.btn {
+  box-sizing: border-box;
+  --btn-press: 2px;
+  flex: 0 0 auto;
+  /* Same explicit height as the input so they line up exactly. */
+  height: 2rem;
+  padding: 0 0.85rem;
+  border-radius: 0.6rem;
+  font-size: 0.78rem;
+}
+/* Token chips. */
+.pcache__toks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 3rem;
+  padding: 0.2rem 0;
+}
+.pcache__tok {
+  --edge: var(--color-rule);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  border: 1.5px solid var(--color-rule);
+  border-radius: 0.55rem;
+  background: var(--color-paper);
+  box-shadow: 0 2px 0 0 var(--edge);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--color-ink);
+  white-space: pre;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.06s ease;
+}
+/* Cached & matching → green (reused). */
+.pcache__tok.is-hit {
+  border-color: var(--color-success-500);
+  --edge: var(--color-success-700);
+  background: color-mix(in oklch, var(--color-success-500) 16%, white);
+}
+/* Changed / no longer matching → red (invalid, must recompute). */
+.pcache__tok.is-dead {
+  border-color: var(--color-danger-500);
+  --edge: var(--color-danger-700);
+  background: color-mix(in oklch, var(--color-danger-500) 16%, white);
+  color: color-mix(in oklch, var(--color-danger-500) 35%, black);
+}
+.pcache__empty {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.pcache__note {
+  margin: 0.85rem 0 0;
+  min-height: 1.4rem;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--color-ink-soft);
+}
+.pcache__note b {
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Legend. */
+.pcache__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-top: 0.6rem;
+  font-size: 0.72rem;
+  color: var(--color-ink-soft);
+}
+.pcache__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.pcache__sw {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 0.2rem;
+  flex: 0 0 auto;
+}
+.pcache__sw--hit {
+  background: var(--color-success-500);
+}
+.pcache__sw--dead {
+  background: var(--color-danger-500);
+}
+.pcache__sw--none {
+  background: var(--color-paper);
+  border: 1.5px solid var(--color-rule);
+}
+
+/* Cache contents = a token-level prefix tree (shared prefix stored once). */
+.pcache__cache {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--color-rule-soft);
+}
+.pcache__cache-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+.pcache__cache-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.pcache__cap {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-muted);
+}
+.pcache__cap b {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+.pcache__clear {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.4rem;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.pcache__clear:hover {
+  color: var(--color-danger-500, oklch(0.55 0.2 25));
+  text-decoration: underline;
+}
+/* Capacity meter (token budget). */
+.pcache__capbar {
+  height: 0.4rem;
+  margin-bottom: 0.7rem;
+  border-radius: 999px;
+  background: var(--color-paper-2);
+  overflow: hidden;
+}
+.pcache__capfill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--color-primary-500);
+  transition:
+    width 0.3s ease,
+    background 0.2s ease;
+}
+.pcache__capfill.is-warn {
+  background: var(--color-warning-500);
+}
+
+.pcache__list {
+  --pc-gap: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pc-gap);
+  /* Tokens must never wrap (a branch is one continuous sequence); scroll the
+   * whole tree horizontally so branch indentation stays aligned. */
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+.pcache__list-empty {
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+/* One branch of the prefix tree. Branches split at the exact divergence column:
+ * earlier tokens are repeated as hidden "ghost" chips that only reserve width. */
+.pcache__row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+  width: max-content;
+  min-width: 100%;
+}
+.pcache__row .pcache__tok {
+  flex: 0 0 auto;
+}
+/* Ghost chips occupy their real width but stay invisible, so the visible branch
+ * lands precisely under the token it diverged from. */
+.pcache__tok.is-ghost {
+  visibility: hidden;
+}
+/* Connector cell — built from up to four independent strokes so each segment
+ * can be coloured separately (grey rule, or green when on the matched path).
+ * Vertical strokes overshoot by the row gap so adjacent rows join seamlessly. */
+.pcache__elbow {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 0.95rem;
+}
+.pcache__elbow i {
+  position: absolute;
+  background: var(--color-rule);
+}
+.pcache__elbow i.is-hit {
+  background: var(--color-success-500);
+}
+.pcache__seg-up,
+.pcache__seg-down {
+  left: 50%;
+  width: 1.5px;
+  transform: translateX(-50%);
+}
+.pcache__seg-up {
+  top: calc(-1 * var(--pc-gap));
+  height: calc(50% + var(--pc-gap));
+}
+.pcache__seg-down {
+  top: 50%;
+  bottom: calc(-1 * var(--pc-gap));
+}
+.pcache__seg-left,
+.pcache__seg-right {
+  top: 50%;
+  height: 1.5px;
+  transform: translateY(-50%);
+}
+.pcache__seg-left {
+  left: 0;
+  width: 50%;
+}
+.pcache__seg-right {
+  left: 50%;
+  right: 0;
+}
+@media (max-width: 640px) {
+  .pcache {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+  .pcache__bar {
+    flex-wrap: wrap;
+  }
+}

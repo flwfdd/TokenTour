@@ -1,0 +1,61 @@
+---
+// Inline prose reference that lights up code lines on hover.
+//
+// Wrap a phrase and point it at a <CodeBlock id="…">; hovering (or focusing)
+// the phrase highlights the given lines in that block:
+//
+//   <LineRef target="code-foo" lines="14-17">第二个用户消息</LineRef>
+//
+// `lines` is a comma list of single lines and/or ranges, e.g. "3,5,9-12".
+interface Props {
+  /** id of the target <CodeBlock>. */
+  target: string;
+  /** Lines to highlight: "3", "9-12", "3,5,9-12". */
+  lines: string;
+}
+const { target, lines } = Astro.props;
+---
+
+<span class="line-ref" data-ref-target={target} data-ref-lines={lines} tabindex="0">
+  <slot />
+</span>
+
+<script>
+  function parseLines(spec: string): Set<number> {
+    const out = new Set<number>();
+    for (const part of spec.split(",")) {
+      const [a, b] = part.split("-").map((s) => parseInt(s.trim(), 10));
+      if (Number.isNaN(a)) continue;
+      if (!Number.isNaN(b)) {
+        for (let i = Math.min(a, b); i <= Math.max(a, b); i++) out.add(i);
+      } else {
+        out.add(a);
+      }
+    }
+    return out;
+  }
+
+  function initLineRefs() {
+    document.querySelectorAll<HTMLElement>(".line-ref").forEach((el) => {
+      if (el.dataset.lrInit) return;
+      el.dataset.lrInit = "1";
+      const target = el.dataset.refTarget
+        ? document.getElementById(el.dataset.refTarget)
+        : null;
+      if (!target) return;
+      const wanted = parseLines(el.dataset.refLines ?? "");
+      const rows = [...target.querySelectorAll<HTMLElement>(".line")].filter(
+        (l) => wanted.has(Number(l.dataset.line)),
+      );
+      if (!rows.length) return;
+      const on = () => rows.forEach((r) => r.classList.add("line--ref-hl"));
+      const off = () => rows.forEach((r) => r.classList.remove("line--ref-hl"));
+      el.addEventListener("mouseenter", on);
+      el.addEventListener("mouseleave", off);
+      el.addEventListener("focus", on);
+      el.addEventListener("blur", off);
+    });
+  }
+  initLineRefs();
+  document.addEventListener("astro:page-load", initLineRefs);
+</script>

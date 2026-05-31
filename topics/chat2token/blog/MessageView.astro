@@ -1,0 +1,653 @@
+---
+// Topic-shared, language-agnostic message viewer for the chat2token article.
+//
+// Three switchable views:
+//   • Chat     — HuggingFace chat-ui style: minimal, white, conversational.
+//                User bubbles right, assistant text plain, collapsible
+//                "Thinking" + "Called tool" blocks (Input / Output), with the
+//                tool name accented. tool-role messages are folded into the
+//                Output of the call they answer.
+//   • Messages — structured role cards copied from the playground's
+//                roleSurfaceStyle (tint @15% + hairline @40%), muted caption,
+//                white/55 inset sub-boxes.
+//   • JSON     — the shared <CodeBlock>, each line tinted by the role of the
+//                message it belongs to (tool definitions → schema color).
+//
+// View switching reuses the shared design-system <Tabs> (left-aligned sliding
+// underline). Everything is build-time except the tab switching.
+import CodeBlock from "~/components/CodeBlock.astro";
+import Tabs from "~/components/Tabs.astro";
+import { Brain, ChevronDown } from "@lucide/astro";
+
+interface Props {
+  /** JSON string: either an array of messages, or `{ messages, tools }`. */
+  code: string;
+  /** Label shown in the JSON code block's title bar. */
+  title?: string;
+}
+const { code, title = "messages" } = Astro.props;
+
+type AnyMsg = Record<string, any>;
+const ROLE_SET = new Set(["system", "user", "assistant", "tool"]);
+
+let parsed: any = null;
+try {
+  parsed = JSON.parse(code);
+} catch {
+  parsed = null;
+}
+
+const messages: AnyMsg[] = Array.isArray(parsed)
+  ? parsed
+  : Array.isArray(parsed?.messages)
+    ? parsed.messages
+    : parsed && typeof parsed === "object"
+      ? [parsed]
+      : [];
+const tools: AnyMsg[] = Array.isArray(parsed?.tools) ? parsed.tools : [];
+const toolNames: string[] = tools.map((t) => t?.function?.name).filter(Boolean);
+const canChat = messages.length > 0;
+
+// Map tool_call_id → tool-result content, so the Chat view can fold each
+// tool-role message into the "Called tool" block it answers.
+const toolOutputs: Record<string, string> = {};
+for (const m of messages) {
+  if (m.role === "tool" && m.tool_call_id) {
+    toolOutputs[m.tool_call_id] =
+      typeof m.content === "string" ? m.content : JSON.stringify(m.content, null, 2);
+  }
+}
+
+// Pretty-print tool-call arguments like the playground; tolerate a string.
+const argPretty = (a: unknown) => {
+  let obj: unknown = a;
+  if (typeof a === "string") {
+    try {
+      obj = JSON.parse(a);
+    } catch {
+      return a;
+    }
+  }
+  try {
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return String(a);
+  }
+};
+
+// Re-serialize the payload deterministically so we know, line by line, which
+// role each line belongs to — then hand those lines a role-tinted background.
+const ROLE_BG: Record<string, string> = {
+  system: "--mv-system",
+  user: "--mv-user",
+  assistant: "--mv-assistant",
+  tool: "--mv-tool",
+  schema: "--mv-schema",
+  cyan: "--mv-cyan",
+};
+// Per-key role overrides: a field can take a different hue from its message's
+// base role. Currently none — reasoning_content just follows its assistant
+// message so the JSON view doesn't single it out.
+const KEY_ROLE: Record<string, string> = {};
+const outLines: string[] = [];
+const lineRoles: (string | undefined)[] = [];
+// Per-line index of the source message (for the hover bus's message-level
+// linking); `undefined` for structural lines and the tools schema.
+const lineMsgs: (number | undefined)[] = [];
+const pushLine = (text: string, role?: string, mi?: number) => {
+  outLines.push(text);
+  lineRoles.push(role);
+  lineMsgs.push(mi);
+};
+const emitBlock = (
+  value: unknown,
+  pad: string,
+  role: string | undefined,
+  comma: boolean,
+  mi?: number,
+) => {
+  const block = JSON.stringify(value, null, 2).split("\n");
+  block.forEach((l, i) => {
+    const last = i === block.length - 1;
+    pushLine(pad + l + (last && comma ? "," : ""), role, mi);
+  });
+};
+// A message object, serialized key-by-key so that overridden keys (e.g.
+// reasoning_content) can be tinted differently from the message's base role.
+const emitMessage = (
+  m: AnyMsg,
+  pad: string,
+  baseRole: string | undefined,
+  comma: boolean,
+  mi?: number,
+) => {
+  if (!m || typeof m !== "object" || Array.isArray(m)) {
+    emitBlock(m, pad, baseRole, comma, mi);
+    return;
+  }
+  const keys = Object.keys(m);
+  pushLine(pad + "{", baseRole, mi);
+  keys.forEach((k, i) => {
+    const last = i === keys.length - 1;
+    const role = KEY_ROLE[k] ?? baseRole;
+    const valLines = JSON.stringify(m[k], null, 2).split("\n");
+    valLines.forEach((l, j) => {
+      const lastLine = j === valLines.length - 1;
+      const prefix = j === 0 ? `${pad}  ${JSON.stringify(k)}: ` : `${pad}  `;
+      pushLine(prefix + l + (lastLine && !last ? "," : ""), role, mi);
+    });
+  });
+  pushLine(pad + "}" + (comma ? "," : ""), baseRole, mi);
+};
+
+let jsonForView = code;
+let highlight = false;
+if (Array.isArray(parsed)) {
+  pushLine("[");
+  parsed.forEach((m: AnyMsg, i) =>
+    emitMessage(m, "  ", ROLE_SET.has(m?.role) ? m.role : undefined, i < parsed.length - 1, i),
+  );
+  pushLine("]");
+  highlight = true;
+} else if (parsed && typeof parsed === "object") {
+  const keys = Object.keys(parsed);
+  pushLine("{");
+  keys.forEach((key, ki) => {
+    const isLast = ki === keys.length - 1;
+    const val = parsed[key];
+    if (key === "messages" && Array.isArray(val)) {
+      pushLine('  "messages": [');
+      val.forEach((m: AnyMsg, i) =>
+        emitMessage(m, "    ", ROLE_SET.has(m?.role) ? m.role : undefined, i < val.length - 1, i),
+      );
+      pushLine(isLast ? "  ]" : "  ],");
+    } else if (key === "tools" && Array.isArray(val)) {
+      pushLine('  "tools": [', "schema");
+      val.forEach((t: AnyMsg, i) => emitBlock(t, "    ", "schema", i < val.length - 1));
+      pushLine(isLast ? "  ]" : "  ],", "schema");
+    } else {
+      const block = JSON.stringify(val, null, 2).split("\n");
+      block.forEach((l, i) => {
+        const last = i === block.length - 1;
+        const prefix = i === 0 ? `  ${JSON.stringify(key)}: ` : "  ";
+        pushLine(prefix + l + (last && !isLast ? "," : ""), undefined);
+      });
+    }
+  });
+  pushLine("}");
+  highlight = true;
+}
+if (highlight) jsonForView = outLines.join("\n");
+// Hand each role its color to CodeBlock's shared `.line--hl` highlighter — the
+// same path the pure code blocks' key-line highlight uses, so JSON role tints
+// and prose key-lines look identical (full row + gutter, light tint).
+const lineHighlights = highlight
+  ? lineRoles.map((r) => {
+      const v = r ? ROLE_BG[r] : undefined;
+      return v ? `var(${v})` : undefined;
+    })
+  : undefined;
+// Per-line segment for the hover bus (TemplateLab): reasoning's "cyan" maps
+// back to assistant so the JSON, cards and template all light up together.
+const SEG_OF: Record<string, string> = {
+  system: "system",
+  user: "user",
+  assistant: "assistant",
+  tool: "tool",
+  schema: "schema",
+  cyan: "assistant",
+};
+const lineSegs = highlight ? lineRoles.map((r) => (r ? SEG_OF[r] : undefined)) : undefined;
+const lineMsgsForView = highlight ? lineMsgs : undefined;
+
+const roleClass = (r: string) => (ROLE_SET.has(r) ? r : "other");
+const segOf = (r: string) => (ROLE_SET.has(r) ? r : undefined);
+---
+
+<div class="msg-view">
+  {
+    canChat ? (
+      <Tabs labels={["Chat", "Messages", "JSON"]} label="消息视图">
+        {/* ── Chat (HuggingFace chat-ui style) ─────────────────────── */}
+        <Fragment slot="0">
+          {toolNames.length > 0 && (
+            <div class="mv-toolbar">
+              <span class="mv-toolbar__label">Tools</span>
+              {toolNames.map((n) => (
+                <span class="mv-badge" data-seg="schema">{n}</span>
+              ))}
+            </div>
+          )}
+          <div class="mv-flow">
+            {messages.map((m, mi) => {
+              if (m.role === "tool") return null;
+              if (m.role === "user") {
+                return (
+                  <div class="hf-row hf-row--user" data-seg="user" data-msg={mi}>
+                    <div class="hf-bubble">{m.content}</div>
+                  </div>
+                );
+              }
+              if (m.role === "system") {
+                return (
+                  <div class="hf-sys" data-seg="system" data-msg={mi}>
+                    <span class="hf-sys__label">System</span>
+                    {m.content}
+                  </div>
+                );
+              }
+              return (
+                <div class="hf-asst" data-seg="assistant" data-msg={mi}>
+                  {m.reasoning_content && (
+                    <details class="hf-fold hf-think">
+                      <summary>Thinking</summary>
+                      <div class="hf-think__body">{m.reasoning_content}</div>
+                    </details>
+                  )}
+                  {Array.isArray(m.tool_calls) &&
+                    m.tool_calls.map((tc: AnyMsg) => {
+                      const out = tc?.id ? toolOutputs[tc.id] : undefined;
+                      return (
+                        <details class="hf-fold hf-call">
+                          <summary>
+                            <span class="hf-call__pre">Called tool</span>
+                            <span class="hf-call__name">{tc?.function?.name}</span>
+                          </summary>
+                          <div class="hf-call__body">
+                            <div class="hf-io">
+                              <div class="hf-io__label">Input</div>
+                              <pre class="hf-io__box">{argPretty(tc?.function?.arguments)}</pre>
+                            </div>
+                            {out !== undefined && (
+                              <div class="hf-io">
+                                <div class="hf-io__label">Output</div>
+                                <pre class="hf-io__box">{out}</pre>
+                              </div>
+                            )}
+                          </div>
+                        </details>
+                      );
+                    })}
+                  {m.content && <div class="hf-text">{m.content}</div>}
+                  {!m.content && !m.tool_calls && !m.reasoning_content && (
+                    <div class="hf-text hf-empty">(no content)</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Fragment>
+
+        {/* ── Messages (structured role cards) ─────────────────────── */}
+        <Fragment slot="1">
+          {toolNames.length > 0 && (
+            <div class="mv-toolbar">
+              <span class="mv-toolbar__label">Tools</span>
+              {toolNames.map((n) => (
+                <span class="mv-badge" data-seg="schema">{n}</span>
+              ))}
+            </div>
+          )}
+          <div class="mv-cards">
+            {messages.map((m, mi) => (
+              <div class={`mv-msg mv-${roleClass(m.role)}`} data-seg={segOf(m.role)} data-msg={mi}>
+                <div class="mv-msg__role">
+                  {m.role}
+                  {m.name ? ` · ${m.name}` : ""}
+                </div>
+                {m.reasoning_content && (
+                  <details class="mv-think-fold">
+                    <summary>
+                      <Brain size={12} strokeWidth={2} />
+                      Thinking
+                      <ChevronDown class="mv-think-fold__chev" size={12} strokeWidth={2} />
+                    </summary>
+                    <div class="mv-think">{m.reasoning_content}</div>
+                  </details>
+                )}
+                {m.content && <div class="mv-text">{m.content}</div>}
+                {!m.content && !m.tool_calls && !m.reasoning_content && (
+                  <div class="mv-empty">(empty)</div>
+                )}
+                {Array.isArray(m.tool_calls) &&
+                  m.tool_calls.map((tc: AnyMsg) => (
+                    <div class="mv-call">
+                      <div class="mv-call__name">→ {tc?.function?.name}</div>
+                      <pre class="mv-call__args">{argPretty(tc?.function?.arguments)}</pre>
+                    </div>
+                  ))}
+              </div>
+            ))}
+          </div>
+        </Fragment>
+
+        {/* ── JSON (shared CodeBlock, role-tinted lines) ───────────── */}
+        <Fragment slot="2">
+          <div class="mv-json">
+            <CodeBlock code={jsonForView} lang="json" title={title} lineHighlights={lineHighlights} lineSegs={lineSegs} lineMsgs={lineMsgsForView} />
+          </div>
+        </Fragment>
+      </Tabs>
+    ) : (
+      <div class="mv-json">
+        <CodeBlock code={jsonForView} lang="json" title={title} lineHighlights={lineHighlights} lineSegs={lineSegs} lineMsgs={lineMsgsForView} />
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .msg-view {
+    /* Role hues copied from the playground (theme.css --color-role-*). */
+    --mv-system: oklch(0.62 0.17 300);
+    --mv-schema: oklch(0.72 0.16 350);
+    --mv-user: var(--color-primary-500);
+    --mv-assistant: var(--color-success-500);
+    --mv-tool: var(--color-accent-500);
+    --mv-cyan: var(--color-primary-500);
+    --mv-other: var(--color-border, var(--color-rule));
+    /* Sans-serif throughout, matching the playground (theme.css .pg-root). */
+    --mv-sans:
+      ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    margin: 1.75rem 0;
+  }
+
+  /* Tool-definitions badge row — schema-colored chips, sitting atop the Chat
+   * and Messages panels (the JSON panel shows the tools inline already). */
+  .mv-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.55rem;
+    font-family: var(--mv-sans);
+  }
+  .mv-toolbar__label {
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  /* Tinted pill, no border. Same pale schema wash the JSON `tools` lines use
+   * (schema @16% toward white) + the raw schema hue as text. */
+  .mv-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: color-mix(in oklch, var(--mv-schema) 16%, white);
+    color: var(--mv-schema);
+  }
+
+  /* ── Chat — HuggingFace chat-ui look: white, minimal, conversational ── */
+  .mv-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
+    padding: 1.15rem 1.2rem;
+    border-radius: 0.9rem;
+    background: var(--color-code-bg);
+    font-family: var(--mv-sans);
+    font-weight: 400;
+    font-size: 0.92rem;
+    line-height: 1.65;
+    color: var(--color-ink);
+  }
+
+  /* System: left-aligned block, like any other turn. */
+  .hf-sys {
+    font-size: 0.84rem;
+    color: var(--color-ink-soft);
+  }
+  .hf-sys__label {
+    display: block;
+    margin-bottom: 0.15rem;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .hf-row--user {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .hf-bubble {
+    max-width: 82%;
+    padding: 0.5rem 0.85rem;
+    border-radius: 1.1rem;
+    background: var(--color-paper-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .hf-asst {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .hf-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .hf-empty {
+    color: var(--color-muted);
+    font-style: italic;
+  }
+
+  /* Collapsibles — native <details>, custom caret, no default marker. */
+  .hf-fold > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.82rem;
+    color: var(--color-muted);
+  }
+  .hf-fold > summary::-webkit-details-marker {
+    display: none;
+  }
+  .hf-fold > summary::before {
+    content: "";
+    flex: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid currentColor;
+    border-top: 3.5px solid transparent;
+    border-bottom: 3.5px solid transparent;
+    opacity: 0.65;
+    transition: transform 0.15s ease;
+  }
+  .hf-fold[open] > summary::before {
+    transform: rotate(90deg);
+  }
+
+  .hf-think__body {
+    margin-top: 0.35rem;
+    padding-left: 0.85rem;
+    font-size: 0.86em;
+    font-style: italic;
+    line-height: 1.6;
+    color: var(--color-ink-soft);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .hf-call__pre {
+    color: var(--color-ink-soft);
+  }
+  /* The tool name is the accent — the playground's role-tool hue. */
+  .hf-call__name {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--mv-tool);
+  }
+  .hf-call__body {
+    margin-top: 0.45rem;
+    padding-left: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .hf-io__label {
+    margin-bottom: 0.15rem;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  /* Distinguished by background only — no border. (Override the inherited
+   * `.prose pre` chrome: border / box-shadow / forced bg.) */
+  .hf-io__box {
+    margin: 0;
+    padding: 0.55rem 0.7rem;
+    border: 0;
+    border-radius: 0.55rem;
+    box-shadow: none;
+    background: var(--color-paper-2) !important;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    line-height: 1.55;
+    color: var(--color-ink-soft);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Messages — structured role cards ─────────────────────────── */
+  .mv-cards {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.1rem 0.5rem;
+    font-family: var(--mv-sans);
+    font-weight: 400;
+  }
+  /* Minimal: flat, borderless, no glow. Light & bright role wash — same mix
+   * the JSON view paints its lines with, so the two stay in lock-step.
+   * Width hugs the content up to a cap, so a short turn is a small bubble. */
+  .mv-msg {
+    --role: var(--mv-other);
+    width: fit-content;
+    max-width: min(88%, 38rem);
+    padding: 0.55rem 0.7rem;
+    border-radius: 0.75rem;
+    background: color-mix(in oklch, var(--role) 16%, white);
+  }
+  .mv-system {
+    --role: var(--mv-system);
+  }
+  /* User hugs the right edge, everyone else the left. */
+  .mv-user {
+    --role: var(--mv-user);
+    align-self: flex-end;
+  }
+  .mv-assistant {
+    --role: var(--mv-assistant);
+  }
+  .mv-tool {
+    --role: var(--mv-tool);
+  }
+  .mv-msg__role {
+    margin-bottom: 0.3rem;
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .mv-text {
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--color-ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .mv-empty {
+    font-size: 0.86rem;
+    font-style: italic;
+    color: var(--color-muted);
+  }
+  /* Reasoning ("Thinking") — collapsed by default, matching the playground's
+   * chat bubble: Brain glyph + uppercase caption + a chevron that flips open,
+   * all inside a translucent-white inset. */
+  .mv-think-fold {
+    margin-top: 0.4rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    background: oklch(1 0 0 / 0.55);
+  }
+  .mv-think-fold:first-child {
+    margin-top: 0;
+  }
+  .mv-think-fold > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .mv-think-fold > summary::-webkit-details-marker {
+    display: none;
+  }
+  .mv-think-fold > summary:hover {
+    color: var(--color-ink);
+  }
+  .mv-think-fold__chev {
+    margin-left: auto;
+    transition: transform 0.15s ease;
+  }
+  .mv-think-fold[open] .mv-think-fold__chev {
+    transform: rotate(180deg);
+  }
+  .mv-think {
+    margin-top: 0.2rem;
+    font-size: 0.84em;
+    font-style: italic;
+    line-height: 1.55;
+    color: var(--color-ink-soft);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  /* Tool call — identical to the playground's display card. */
+  .mv-call {
+    margin-top: 0.375rem;
+    padding: 0.375rem;
+    border-radius: 0.375rem;
+    background: oklch(1 0 0 / 0.55);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    line-height: 1.5;
+  }
+  .mv-call__name {
+    color: var(--mv-tool);
+  }
+  .mv-call__args {
+    margin: 0.15rem 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent !important;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--color-ink-soft);
+  }
+
+  /* Reused code block sits flush — the tabs are our chrome, not its card. */
+  .mv-json :global(.code-block) {
+    margin: 0;
+  }
+</style>

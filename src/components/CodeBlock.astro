@@ -7,16 +7,61 @@
 // `data-code` attribute; a single delegated listener (see the module
 // script below) handles clipboard writes for every block on the page.
 import { Code } from "astro:components";
-import { Copy, Check } from "@lucide/astro";
+import { Copy, Check, WrapText } from "@lucide/astro";
 
 interface Props {
   code: string;
   lang?: string;
   /** Header label. Falls back to the language when omitted. */
   title?: string;
+  /**
+   * Optional id on the <figure>. Lets prose <LineRef> triggers target this
+   * block and highlight specific lines on hover.
+   */
+  id?: string;
+  /**
+   * Per-line highlight color (index 0 = line 1). Any line given a color gets
+   * the shared full-row `.line--hl` treatment — a light tint of that color
+   * across the row *and* the number gutter. Used by <MessageView> to tint
+   * JSON lines by role; pass e.g. `var(--mv-user)`.
+   */
+  lineHighlights?: (string | undefined)[];
+  /**
+   * Convenience: 1-based line numbers to call out in the standard cyan, with
+   * an extra left accent bar. Goes through the same `.line--hl` path as
+   * `lineHighlights`, so key-lines and role tints stay visually unified.
+   */
+  highlight?: number[];
+  /**
+   * Per-line `data-seg` value (index 0 = line 1). Lets an enclosing hover bus
+   * (TemplateLab) dim/highlight JSON lines by role/function, matching the
+   * template + message-card panes.
+   */
+  lineSegs?: (string | undefined)[];
+  /**
+   * Per-line `data-msg` value (index 0 = line 1) — the index of the message a
+   * JSON line belongs to. Lets the hover bus light up a *single* message across
+   * panes (finer than `lineSegs`, which is role-level).
+   */
+  lineMsgs?: (number | undefined)[];
 }
 
-const { code, lang = "ts", title } = Astro.props;
+const { code, lang = "ts", title, id, lineHighlights, highlight, lineSegs, lineMsgs } = Astro.props;
+const highlightSet = highlight && highlight.length ? new Set(highlight) : null;
+const hasHighlight = Boolean(lineHighlights?.length || highlightSet);
+
+// Tag every line with its 1-based number so prose <LineRef> hovers can find
+// the rows to light up. Cheap, so always on.
+const lineNumberTransformer = {
+  name: "tt:line-number",
+  line(node: { properties: Record<string, any> }, line: number) {
+    node.properties["data-line"] = line;
+    const seg = lineSegs?.[line - 1];
+    if (seg) node.properties["data-seg"] = seg;
+    const mi = lineMsgs?.[line - 1];
+    if (mi !== undefined && mi !== null) node.properties["data-msg"] = mi;
+  },
+};
 
 // Shiki emits a literal `\n` text node between each `<span class="line">`.
 // With `.line` set to `display:block` those newlines double the spacing,
@@ -29,28 +74,77 @@ const stripLineNewlines = {
     );
   },
 };
+
+// One unified highlight path: resolve a per-line color (explicit override, or
+// the standard cyan for `highlight` lines), then drive the `.line--hl` style
+// (tinted row + gutter + left accent bar) via the `--hl` custom property.
+const highlightTransformer = hasHighlight
+  ? {
+      name: "tt:line-highlight",
+      line(node: { properties: Record<string, any> }, line: number) {
+        const explicit = lineHighlights?.[line - 1];
+        const color = explicit ?? (highlightSet?.has(line) ? "var(--color-primary-500)" : undefined);
+        if (!color) return;
+        node.properties.class = node.properties.class
+          ? `${node.properties.class} line--hl`
+          : "line line--hl";
+        const decl = `--hl:${color}`;
+        node.properties.style = node.properties.style
+          ? `${node.properties.style};${decl}`
+          : decl;
+      },
+    }
+  : null;
+
+const transformers = [
+  stripLineNewlines,
+  lineNumberTransformer,
+  ...(highlightTransformer ? [highlightTransformer] : []),
+];
 ---
 
-<figure class="code-block">
+<figure class="code-block" id={id}>
   <figcaption class="code-block__bar">
     <span class="code-block__dots" aria-hidden="true">
       <i></i><i></i><i></i>
     </span>
     <span class="code-block__title">{title ?? lang}</span>
-    <button
-      class="code-block__copy"
-      type="button"
-      data-code={code}
-      aria-label="复制代码"
-    >
-      <Copy class="code-block__icon code-block__icon--copy" size={15} strokeWidth={2} />
-      <Check class="code-block__icon code-block__icon--check" size={15} strokeWidth={2.4} />
-    </button>
+    <span class="code-block__actions">
+      <button
+        class="code-block__btn code-block__wrap"
+        type="button"
+        aria-label="切换自动换行"
+        aria-pressed="false"
+      >
+        <WrapText class="code-block__icon" size={15} strokeWidth={2} />
+      </button>
+      <button
+        class="code-block__btn code-block__copy"
+        type="button"
+        data-code={code}
+        aria-label="复制代码"
+      >
+        <Copy class="code-block__icon code-block__icon--copy" size={15} strokeWidth={2} />
+        <Check class="code-block__icon code-block__icon--check" size={15} strokeWidth={2.4} />
+      </button>
+    </span>
   </figcaption>
-  <Code code={code} lang={lang} theme="github-light" transformers={[stripLineNewlines]} />
+  <Code code={code} lang={lang} theme="one-light" transformers={transformers} />
 </figure>
 
 <script>
+  // Per-block "soft wrap" toggle — flips `.is-wrapped` on the card so a
+  // long-line block can switch between horizontal scroll and wrapping.
+  document.querySelectorAll<HTMLButtonElement>(".code-block__wrap").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const card = btn.closest(".code-block");
+      if (!card) return;
+      const on = card.classList.toggle("is-wrapped");
+      btn.classList.toggle("is-on", on);
+      btn.setAttribute("aria-pressed", String(on));
+    });
+  });
+
   document.querySelectorAll<HTMLButtonElement>(".code-block__copy").forEach((btn) => {
     let resetTimer: ReturnType<typeof setTimeout> | undefined;
     btn.addEventListener("click", async () => {

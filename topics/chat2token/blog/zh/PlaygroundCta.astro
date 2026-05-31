@@ -1,0 +1,52 @@
+---
+// Local CTA for the chat2token article. Instead of embedding the full
+// playground inline, we link out to it once near the top — rendered as the
+// design language's primary button (.btn .btn-primary), not a custom card.
+import { FlaskConical, ArrowRight } from "@lucide/astro";
+
+interface Props {
+  /** Where the playground lives. Defaults to the site root (the App shell). */
+  href?: string;
+}
+const { href = "/" } = Astro.props;
+---
+
+<p class="pg-cta">
+  <a class="btn btn-primary pg-cta__btn" href={href} target="_blank" rel="noopener">
+    <FlaskConical size={16} strokeWidth={2.2} aria-hidden="true" />
+    打开交互式 Playground
+    <ArrowRight class="pg-cta__arrow" size={15} strokeWidth={2.4} aria-hidden="true" />
+  </a>
+  <span class="pg-cta__hint"><slot /></span>
+</p>
+
+<style>
+  .pg-cta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem 0.9rem;
+    margin: 1.6rem 0;
+  }
+  /* Win over `.prose a` (color + hover underline) — the button owns its look. */
+  .pg-cta__btn {
+    flex: none;
+    color: var(--btn-fg);
+    text-decoration: none;
+  }
+  .pg-cta__btn:hover {
+    text-decoration: none;
+  }
+  .pg-cta__arrow {
+    transition: transform 0.15s ease;
+  }
+  .pg-cta__btn:hover .pg-cta__arrow {
+    transform: translateX(2px);
+  }
+  .pg-cta__hint {
+    flex: 1 1 16rem;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--color-muted);
+  }
+</style>

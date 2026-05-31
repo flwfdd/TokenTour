@@ -1,0 +1,107 @@
+---
+// Notion-style table of contents — a floating right-edge rail.
+//
+// Zero config: the bundled script scans the page for the headings named
+// by `selector` (default: the article's <h2>/<h3>), assigns ids where
+// missing, and builds the rail — so any `.prose` page can just drop in
+// <Toc />. Collapsed it shows dashes; hover/focus slides the labels out.
+// Styling lives in `src/styles/design.css` (`.toc*`) so /design and the
+// blog stay in lock-step. Self-hides when there are no headings.
+interface Props {
+  /** Headings to index. */
+  selector?: string;
+  /** Small-caps label shown when the rail is expanded. */
+  title?: string;
+}
+const { selector = ".prose h2, .prose h3", title = "目录" } = Astro.props;
+---
+
+<nav class="toc" data-toc data-selector={selector} aria-label={title}>
+  <div class="toc__inner">
+    <div class="toc__title">{title}</div>
+    <ul class="toc__list"></ul>
+  </div>
+</nav>
+
+<script>
+  function slugify(text: string, index: number): string {
+    const base = text
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-+|-+$/g, "");
+    return `h-${base || "section"}-${index}`;
+  }
+
+  function initToc(nav: HTMLElement) {
+    const selector = nav.getAttribute("data-selector") || ".prose h2, .prose h3";
+    const list = nav.querySelector<HTMLUListElement>(".toc__list");
+    if (!list) return;
+
+    const headings = Array.from(document.querySelectorAll<HTMLElement>(selector));
+    if (headings.length === 0) {
+      nav.style.display = "none";
+      return;
+    }
+
+    const items: { heading: HTMLElement; li: HTMLLIElement }[] = [];
+
+    headings.forEach((heading, i) => {
+      if (!heading.id) heading.id = slugify(heading.textContent ?? "", i);
+      heading.style.scrollMarginTop = "1.5rem";
+
+      const level = heading.tagName === "H3" ? 3 : 2;
+      const li = document.createElement("li");
+      li.className = "toc__item";
+      li.dataset.level = String(level);
+
+      const link = document.createElement("a");
+      link.className = "toc__link";
+      link.href = `#${heading.id}`;
+
+      const label = document.createElement("span");
+      label.className = "toc__label";
+      label.textContent = heading.textContent ?? "";
+
+      const bar = document.createElement("span");
+      bar.className = "toc__bar";
+      bar.setAttribute("aria-hidden", "true");
+
+      link.append(label, bar);
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        heading.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", `#${heading.id}`);
+      });
+
+      li.append(link);
+      list.append(li);
+      items.push({ heading, li });
+    });
+
+    // Scroll-spy: the active heading is the last one whose top has
+    // crossed ~30% down the viewport.
+    let activeIndex = -1;
+    const setActive = (index: number) => {
+      if (index === activeIndex) return;
+      items[activeIndex]?.li.classList.remove("is-active");
+      items[index]?.li.classList.add("is-active");
+      activeIndex = index;
+    };
+    const onScroll = () => {
+      const line = window.innerHeight * 0.3;
+      let index = 0;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].heading.getBoundingClientRect().top - line <= 0) index = i;
+        else break;
+      }
+      setActive(index);
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-toc]").forEach(initToc);
+</script>

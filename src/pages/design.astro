@@ -7,6 +7,7 @@ import Callout from "~/components/Callout.astro";
 import Accordion from "~/components/Accordion.astro";
 import Tabs from "~/components/Tabs.astro";
 import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
+import Toc from "~/components/Toc.astro";
 import Layout from "~/layouts/Layout.astro";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -153,6 +154,16 @@ import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
 <!-- React island：必须带 client 指令才会 hydrate。 -->
 <!-- client:visible = 滚动进视口再加载，适合首屏以下的重组件。 -->
 <KLDivergenceDemo client:visible />`;
+
+const usageToc = `---
+import Toc from "~/components/Toc.astro";
+---
+<!-- 放在 Layout 内、reading column 外即可（自身 position: fixed） -->
+<Toc />
+
+<!-- selector: 要索引的标题，默认 ".prose h2, .prose h3" -->
+<!-- title:    展开时的小标题，默认 "目录" -->
+<Toc selector=".prose h2" title="On this page" />`;
 ---
 
 <Layout title="设计语言参考 · TokenTour">
@@ -160,6 +171,8 @@ import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
       <a href="/">⟵ TokenTour</a>
       <span class="site-tag">Design · Specimen</span>
     </header>
+
+    <Toc />
 
     <main class="column">
       <article class="prose">
@@ -457,6 +470,16 @@ import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
         </p>
         <KLDivergenceDemo client:visible />
         <CodeBlock code={usageChart} lang="astro" title="用法" />
+
+        <h2>目录 · Toc</h2>
+        <p>
+          Notion 风格的浮动目录，钉在页面右侧边缘——就是你现在在这一页右边看到的那条。收起时是一列右对齐的短横，
+          h3 比 h2 更短；当前所在小节的横条会变青、变长。鼠标移上去（或键盘聚焦），标题文字从裁切宽度里淡入、
+          横向「打印」出来（无卡片背景，直接浮在页面留白上）。组件零配置：脚本自动扫描页面里的
+          <code>{'<h2>'}</code> / <code>{'<h3>'}</code> 建立目录并接管滚动高亮，任何
+          <code>.prose</code> 页面直接放一个 <code>{'<Toc />'}</code> 即可。视口太窄放不下侧栏时自动隐藏。
+        </p>
+        <CodeBlock code={usageToc} lang="astro" title="用法" />
 
         <h2>键位</h2>
         <p>

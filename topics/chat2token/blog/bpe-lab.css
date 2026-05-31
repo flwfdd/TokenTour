@@ -1,0 +1,465 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * BPE merge walk-through (BpeLab.astro) — topic-specific (chat2token), NOT part
+ * of the shared design system. A plain (global) stylesheet because the token /
+ * candidate chips are built as raw HTML strings by the client script, so they
+ * never receive Astro's scoping attribute and scoped selectors wouldn't match.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+.bpe {
+  margin: 1.75rem 0;
+  padding: 1.1rem 1.25rem 1rem;
+  background: oklch(1 0 0);
+  border-radius: 0.9rem;
+}
+
+/* Editable input — uses the design-system `.field`, just mono + a touch larger. */
+.bpe__input {
+  display: flex;
+  margin-bottom: 0.6rem;
+}
+.bpe__field {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+.bpe .bpe__field:hover {
+  border-color: var(--color-primary-500);
+}
+/* Quick-fill presets on their own row below the input — compact `.btn btn-ghost`. */
+.bpe__presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.bpe__presets-label {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  margin-right: 0.1rem;
+}
+.bpe__preset.btn {
+  --btn-press: 2px;
+  padding: 0.28rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+}
+.bpe__preset {
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--color-rule-soft);
+  border-radius: 0.5rem;
+  background: oklch(0.96 0 0);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.bpe__preset:hover {
+  border-color: var(--color-primary-500);
+  color: var(--color-primary-500);
+}
+
+.bpe__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.bpe__title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--color-ink);
+}
+.bpe__step {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* Stage — the live token sequence + the candidate pills. */
+.bpe__stage {
+  padding: 1.1rem 0.5rem 0.4rem;
+}
+.bpe__seq {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem 0;
+  min-height: 3.2rem;
+  max-height: 9.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.15rem 0.1rem 0.35rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rule) transparent;
+}
+/* Chunky "Duolingo" chip: 1.5px ruled box with a hard, un-blurred bottom edge.
+ * Each state just rebinds --edge so the bottom shadow matches the border tone. */
+.bpe__tok {
+  --edge: var(--color-rule);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  min-width: 2.2rem;
+  padding: 0.32rem 0.6rem;
+  border: 1.5px solid var(--color-rule);
+  border-radius: 0.6rem;
+  background: var(--color-paper);
+  box-shadow: 0 2px 0 0 var(--edge);
+  font-family: var(--font-mono);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.06s ease,
+    transform 0.06s ease;
+}
+.bpe__tok b {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-ink);
+  white-space: pre;
+}
+.bpe__tok i {
+  font-style: normal;
+  font-size: 0.62rem;
+  color: var(--color-muted);
+}
+.bpe__empty {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+.bpe__vempty {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+/* Thin connector between adjacent tokens. */
+.bpe__plus {
+  width: 0.5rem;
+  height: 1px;
+  background: var(--color-rule-soft);
+  flex: 0 0 auto;
+  align-self: center;
+  margin-bottom: 2px;
+}
+
+.bpe__tok.is-hot {
+  border-color: var(--color-primary-500);
+  --edge: var(--color-primary-700);
+  background: color-mix(in oklch, var(--color-primary-500) 10%, white);
+}
+/* This step's winning pair, about to merge → orange. Higher specificity (.bpe …)
+ * so it always outranks the cyan hover state. */
+.bpe .bpe__tok.is-chosen {
+  border-color: var(--color-warning-500);
+  --edge: var(--color-warning-700);
+  background: color-mix(in oklch, var(--color-warning-500) 26%, white);
+}
+/* Just created by the previous step → green, so it reads differently from the
+ * orange pair that's about to merge next. */
+.bpe__tok.is-merged {
+  border-color: var(--color-success-500);
+  --edge: var(--color-success-700);
+  background: color-mix(in oklch, var(--color-success-500) 20%, white);
+  animation: bpe-pop 0.4s ease;
+}
+.bpe__tok.is-merged b {
+  color: color-mix(in oklch, var(--color-success-500) 78%, black);
+}
+@keyframes bpe-pop {
+  0% {
+    transform: scale(0.7);
+    background: color-mix(in oklch, var(--color-success-500) 34%, white);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Raw byte fragments (incomplete UTF-8, e.g. rare CJK / emoji shown as \xHH). */
+.bpe__tok.is-frag b,
+.bpe__vchip.is-frag b {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+  letter-spacing: -0.02em;
+}
+
+/* Candidate pills. */
+.bpe__cands {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  min-height: 1.9rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.15rem 0.1rem 0.35rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rule) transparent;
+}
+.bpe__seq::-webkit-scrollbar,
+.bpe__cands::-webkit-scrollbar {
+  width: 0.4rem;
+}
+.bpe__seq::-webkit-scrollbar-thumb,
+.bpe__cands::-webkit-scrollbar-thumb {
+  background: var(--color-rule-soft);
+  border-radius: 999px;
+}
+/* Play / pause icon swap, driven by aria-pressed (set in the script). */
+.bpe__btn .bpe__ico {
+  flex: 0 0 auto;
+}
+.bpe__btn .bpe__ico--pause {
+  display: none;
+}
+.bpe__btn[aria-pressed="true"] .bpe__ico--play {
+  display: none;
+}
+.bpe__btn[aria-pressed="true"] .bpe__ico--pause {
+  display: inline-flex;
+}
+.bpe__cand {
+  --edge: var(--color-rule-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border: 1.5px solid var(--color-rule-soft);
+  border-radius: 0.6rem;
+  background: var(--color-paper);
+  box-shadow: 0 2px 0 0 var(--edge);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--color-ink-soft);
+  cursor: default;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.06s ease,
+    color 0.15s ease;
+}
+.bpe__cand .bpe__arr {
+  color: var(--color-muted);
+}
+.bpe__cand i {
+  font-style: normal;
+  font-size: 0.66rem;
+  color: var(--color-muted);
+}
+.bpe__cand:hover,
+.bpe__cand.is-hot {
+  border-color: var(--color-primary-500);
+  --edge: var(--color-primary-700);
+  background: color-mix(in oklch, var(--color-primary-500) 10%, white);
+}
+.bpe .bpe__cand.is-chosen {
+  border-color: var(--color-warning-500);
+  --edge: var(--color-warning-700);
+  background: color-mix(in oklch, var(--color-warning-500) 24%, white);
+  color: color-mix(in oklch, var(--color-warning-500) 55%, black);
+  font-weight: 600;
+}
+.bpe__cand.is-chosen i {
+  color: color-mix(in oklch, var(--color-warning-500) 45%, black);
+}
+
+.bpe__note {
+  margin: 0.75rem 0 0;
+  min-height: 1.4rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+}
+
+/* Controls. */
+.bpe__ctrls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+/* Slightly more compact than the default page CTA. */
+.bpe__btn.btn {
+  --btn-press: 2px;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.6rem;
+  font-size: 0.78rem;
+}
+/* Disabled reads clearly different from the vivid enabled buttons: drop the
+ * color entirely to a flat neutral-gray, no bottom edge. */
+.bpe__btn.btn[disabled] {
+  opacity: 1;
+  --btn-bg: var(--color-paper-2);
+  --btn-edge: var(--color-rule-soft);
+  --btn-fg: var(--color-muted);
+  border-color: var(--color-rule-soft);
+  box-shadow: 0 1px 0 0 var(--color-rule-soft);
+}
+
+/* Two-column body: the merge stage on the left, the vocab on the side so the
+ * token ↔ id correspondence is always visible alongside the sequence. */
+.bpe__main {
+  display: flex;
+  align-items: stretch;
+  gap: 1.1rem;
+}
+.bpe__left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.bpe__side {
+  flex: 0 0 auto;
+  width: 9.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-left: 1.1rem;
+  border-left: 1px solid var(--color-rule-soft);
+}
+.bpe__vocab-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.bpe__vocab-count {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+  color: var(--color-ink-soft);
+}
+/* The list fills the remaining column height (which is driven by the left
+ * stage), and scrolls within it — so it always occupies the full height rather
+ * than capping at a fixed value. The absolutely-positioned list means its own
+ * (possibly long) content never grows the column. Hovering a token on the left
+ * scrolls the matching chip into view here (see revealVchip in the script). */
+.bpe__vwrap {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.bpe__vlist {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.1rem 0.3rem 0.2rem 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rule) transparent;
+}
+.bpe__vlist::-webkit-scrollbar {
+  width: 0.4rem;
+}
+.bpe__vlist::-webkit-scrollbar-thumb {
+  background: var(--color-rule-soft);
+  border-radius: 999px;
+}
+.bpe__vchip {
+  scroll-margin: 0.4rem 0;
+}
+.bpe__vchip {
+  --edge: var(--color-rule-soft);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border: 1.5px solid var(--color-rule-soft);
+  border-radius: 0.55rem;
+  background: var(--color-paper);
+  box-shadow: 0 2px 0 0 var(--edge);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  opacity: 0.4;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.06s ease,
+    opacity 0.18s ease;
+}
+.bpe__vchip b {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.bpe__vchip i {
+  font-style: normal;
+  font-size: 0.64rem;
+  color: var(--color-muted);
+}
+/* In play in the current sequence → full opacity. */
+.bpe__vchip.is-active {
+  opacity: 1;
+}
+/* Pointed at (from a token / candidate hover) → cyan. */
+.bpe__vchip.is-hot {
+  opacity: 1;
+  border-color: var(--color-primary-500);
+  --edge: var(--color-primary-700);
+  background: color-mix(in oklch, var(--color-primary-500) 10%, white);
+}
+/* The token this step is about to create → orange. Higher specificity so it
+ * outranks the cyan hover state. */
+.bpe .bpe__vchip.is-chosen {
+  opacity: 1;
+  border-color: var(--color-warning-500);
+  --edge: var(--color-warning-700);
+  background: color-mix(in oklch, var(--color-warning-500) 26%, white);
+}
+.bpe__vchip.is-chosen i {
+  color: color-mix(in oklch, var(--color-warning-500) 45%, black);
+}
+
+@media (max-width: 640px) {
+  .bpe {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+  }
+  /* Stack the vocab under the stage on narrow screens. */
+  .bpe__main {
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+  .bpe__side {
+    width: auto;
+    padding-left: 0;
+    padding-top: 0.75rem;
+    border-left: 0;
+    border-top: 1px solid var(--color-rule-soft);
+  }
+  /* Stacked: revert from the fill-the-column absolute layout to a normal
+   * capped, scrollable row of chips. */
+  .bpe__vwrap {
+    position: static;
+    flex: none;
+  }
+  .bpe__vlist {
+    position: static;
+    inset: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    max-height: 9rem;
+  }
+  .bpe__vchip {
+    gap: 0.3rem;
+  }
+}

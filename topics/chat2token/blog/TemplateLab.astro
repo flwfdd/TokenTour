@@ -1,0 +1,188 @@
+---
+// Interactive Messages ↔ Chat Template lab.
+//
+// Two panes under one card:
+//   • left  — the shared <MessageView> (Chat / Messages / JSON, pill toggle);
+//   • right — a <Tabs> switcher over the rendered template per model family.
+// A shared role legend sits at the bottom, and a hover bus (driven by
+// `[data-link]` on the root + a `.tlab-lit` class on the matched nodes) lights
+// up the hovered target across both panes and dims the rest — the static,
+// in-article cousin of the playground's cross-pane hover linkage. Hovering a
+// specific message (`data-msg`) links just that message; hovering a role
+// (`data-seg`: tool badge, legend chip) links the whole role. Click a legend
+// chip to pin a role.
+//
+// Both panes' toggles are the same sliding-pill <Tabs>; the template coloring
+// and segment legend come from the shared highlight module.
+import MessageView from "./MessageView.astro";
+import {
+  renderTemplateLines,
+  segmentsIn,
+  SEG_ORDER,
+  SEG_LABEL,
+  type Seg,
+  type TemplateFamily,
+  type TemplateMessage,
+} from "~/lib/chatTemplateHighlight";
+import "~/components/chat-template.css";
+
+interface FamilySpec {
+  id: TemplateFamily;
+  label: string;
+  code: string;
+  /** Base segment for templates with no opening role marker (rare here). */
+  baseSeg?: Seg;
+}
+interface Props {
+  /** JSON: a message array, or `{ messages, tools }`. */
+  messages: string;
+  families: FamilySpec[];
+}
+
+const { messages: messagesJson, families } = Astro.props;
+
+type AnyMsg = Record<string, any>;
+const ROLE_SET = new Set(["system", "user", "assistant", "tool"]);
+
+let parsed: any = null;
+try {
+  parsed = JSON.parse(messagesJson);
+} catch {
+  parsed = null;
+}
+const msgs: AnyMsg[] = Array.isArray(parsed)
+  ? parsed
+  : Array.isArray(parsed?.messages)
+    ? parsed.messages
+    : [];
+const hasTools = Array.isArray(parsed?.tools) && parsed.tools.length > 0;
+
+const rendered = families.map((f) => ({
+  ...f,
+  html: renderTemplateLines(f.code, f.id, f.baseSeg ?? null, msgs as TemplateMessage[]),
+}));
+
+// Legend = segments that actually appear (in playground order), gathered from
+// both the messages (roles + schema when tools exist) and every template, so a
+// chip never shows for something the reader can't see.
+const present = new Set<Seg>();
+for (const m of msgs) if (m?.role && ROLE_SET.has(m.role)) present.add(m.role as Seg);
+if (hasTools) present.add("schema");
+for (const f of families) for (const s of segmentsIn(f.code, f.id, f.baseSeg ?? null)) present.add(s);
+const legendSegs = SEG_ORDER.filter((s) => present.has(s));
+---
+
+<div class="tlab">
+  <div class="tlab__body">
+    <section class="tlab__pane">
+      <div class="tlab__plabel">messages</div>
+      <MessageView code={messagesJson} />
+    </section>
+
+    <section class="tlab__pane tlab__tmpl">
+      <div class="tlab__plabel">chat template</div>
+      {/* Inline Tabs markup (the global Tabs.astro <script>, present via the
+          MessageView above, auto-wires any .tabs + .tab-panels siblings). */}
+      <div class="tabs" role="tablist" aria-label="模型家族">
+        {
+          rendered.map((f, i) => (
+            <button class="tab" role="tab" aria-selected={i === 0} data-tab={String(i)}>
+              {f.label}
+            </button>
+          ))
+        }
+      </div>
+      <div class="tab-panels">
+        {
+          rendered.map((f, i) => (
+            <div class="tab-panel" data-panel={String(i)} role="tabpanel" hidden={i !== 0}>
+              <pre class="tlab__pre"><code set:html={f.html}></code></pre>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+  </div>
+
+  <div class="tlab__legend">
+    {
+      legendSegs.map((s) => (
+        <button class="tlab__chip" type="button" data-seg={s} aria-pressed="false" style={`--seg:var(--ct-${s})`}>
+          <span class="tlab__sw" />
+          {SEG_LABEL[s]}
+        </button>
+      ))
+    }
+    <span class="tlab__legend-label">悬停联动 · 点击固定</span>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>(".tlab").forEach((root) => {
+    const body = root.querySelector<HTMLElement>(".tlab__body");
+    const chips = [...root.querySelectorAll<HTMLElement>(".tlab__chip")];
+    // A pinned *role* (via legend click) freezes the role-level highlight.
+    let pinnedSeg: string | null = null;
+
+    const clearLit = () =>
+      root.querySelectorAll<HTMLElement>(".tlab-lit").forEach((n) => n.classList.remove("tlab-lit"));
+
+    const lightBy = (attr: "data-msg" | "data-seg", val: string) => {
+      clearLit();
+      body
+        ?.querySelectorAll<HTMLElement>(`[${attr}="${CSS.escape(val)}"]`)
+        .forEach((n) => n.classList.add("tlab-lit"));
+    };
+
+    // One element drives the bus. If it names a specific message (`data-msg`),
+    // light up only that message across panes; otherwise fall back to its role
+    // (`data-seg`) — the coarser, legend-style highlight.
+    const apply = (el: HTMLElement) => {
+      const msg = el.getAttribute("data-msg");
+      const seg = el.getAttribute("data-seg");
+      if (msg !== null) {
+        root.dataset.link = "msg";
+        lightBy("data-msg", msg);
+      } else if (seg !== null) {
+        root.dataset.link = "seg";
+        lightBy("data-seg", seg);
+      }
+      // Chips reflect a role-level highlight only.
+      const litSeg = msg === null ? seg : null;
+      chips.forEach((c) => c.setAttribute("aria-pressed", String(litSeg !== null && c.dataset.seg === litSeg)));
+    };
+
+    const clear = () => {
+      delete root.dataset.link;
+      clearLit();
+      chips.forEach((c) => c.setAttribute("aria-pressed", "false"));
+    };
+
+    root.addEventListener("mouseover", (e) => {
+      if (pinnedSeg) return;
+      const el = (e.target as HTMLElement)?.closest?.("[data-msg],[data-seg]") as HTMLElement | null;
+      if (el && root.contains(el)) apply(el);
+    });
+    root.addEventListener("mouseleave", () => {
+      if (!pinnedSeg) clear();
+    });
+
+    // Click a legend chip to pin / unpin its role.
+    chips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const seg = chip.dataset.seg ?? null;
+        if (pinnedSeg === seg) {
+          pinnedSeg = null;
+          clear();
+        } else {
+          pinnedSeg = seg;
+          if (seg) {
+            root.dataset.link = "seg";
+            lightBy("data-seg", seg);
+            chips.forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.seg === seg)));
+          }
+        }
+      });
+    });
+  });
+</script>

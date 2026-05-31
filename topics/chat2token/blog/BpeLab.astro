@@ -1,0 +1,416 @@
+---
+// Interactive BPE merge walk-through, backed by the REAL GPT-OSS tokenizer
+// (o200k_harmony, the same one the playground ships). There's no hand-written
+// vocab: BPE genuinely starts from the input's UTF-8 *bytes* and merges upward.
+// We build a reverse map (token bytes → id) from the tokenizer once, then replay
+// greedy BPE — at each step merge the adjacent pair whose combined token has the
+// smallest id (= earliest merge rank) — until nothing merges. This reproduces
+// the real tokenizer exactly, including rare CJK / emoji that only partly merge
+// and stay as raw byte fragments (shown as `\xHH`).
+//
+// Caveat kept deliberately simple: we run BPE over the typed text as a single
+// "word" (no pretokenizer regex), which is exactly right for the single-word
+// examples here (momo, strawberry, 犇, …) and a fair simplification otherwise.
+import { RotateCcw, ArrowLeft, ArrowRight, Play, Pause } from "@lucide/astro";
+import "./bpe-lab.css";
+
+interface Props {
+  /** Initial text to tokenize. */
+  text: string;
+  title?: string;
+  /** Quick-fill example strings shown as buttons. */
+  presets?: string[];
+}
+
+const {
+  text,
+  title = "BPE 合并过程（GPT-OSS o200k）",
+  presets = ["momo", "strawberry", "犇", "🥳"],
+} = Astro.props;
+---
+
+<div class="bpe" data-bpe>
+  <div class="bpe__head">
+    <span class="bpe__title">{title}</span>
+    <span class="bpe__step" data-bpe-step></span>
+  </div>
+
+  <div class="bpe__main">
+    <div class="bpe__left">
+      <div class="bpe__input">
+        <input
+          class="field bpe__field"
+          type="text"
+          data-bpe-text
+          value={text}
+          maxlength="32"
+          spellcheck="false"
+          autocomplete="off"
+          aria-label="输入要分词的文本"
+        />
+      </div>
+      <div class="bpe__presets">
+        <span class="bpe__presets-label">试试</span>
+        {
+          presets.map((p) => (
+            <button class="btn btn-ghost bpe__preset" type="button" data-bpe-preset={p}>
+              {p}
+            </button>
+          ))
+        }
+      </div>
+
+      <div class="bpe__stage" data-bpe-stage></div>
+
+      <p class="bpe__note" data-bpe-note></p>
+
+      <div class="bpe__ctrls">
+        <button class="btn btn-warning bpe__btn" type="button" data-bpe-act="reset" aria-label="重置">
+          <RotateCcw size={15} strokeWidth={2.5} /> 重置
+        </button>
+        <button class="btn btn-primary bpe__btn" type="button" data-bpe-act="prev" aria-label="上一步">
+          <ArrowLeft size={15} strokeWidth={2.5} /> 上一步
+        </button>
+        <button class="btn btn-primary bpe__btn" type="button" data-bpe-act="next" aria-label="下一步">
+          下一步 <ArrowRight size={15} strokeWidth={2.5} />
+        </button>
+        <button class="btn btn-success bpe__btn" type="button" data-bpe-act="play" aria-pressed="false">
+          <Play class="bpe__ico bpe__ico--play" size={15} strokeWidth={2.5} />
+          <Pause class="bpe__ico bpe__ico--pause" size={15} strokeWidth={2.5} />
+          <span data-bpe-playlabel>自动播放</span>
+        </button>
+      </div>
+    </div>
+
+    <aside class="bpe__side">
+      <span class="bpe__vocab-label">相关词表<span class="bpe__vocab-count" data-bpe-vcount></span></span>
+      <div class="bpe__vwrap">
+        <div class="bpe__vlist" data-bpe-vlist></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+  // A token (or in-progress merge) tracked at the byte level.
+  interface Unit { key: string; display: string; id: number | null; bytes: number[]; frag: boolean }
+  interface Cand { i: number; a: Unit; b: Unit; merged: Unit; id: number; chosen: boolean }
+  interface Step { seq: Unit[]; cands: Cand[]; chosen: number | null; note: string }
+
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const TE = new TextEncoder();
+  const TD = new TextDecoder();
+  const hex = (b: number) => "\\x" + b.toString(16).toUpperCase().padStart(2, "0");
+
+  async function initBpe(root: HTMLElement) {
+    const stage = root.querySelector<HTMLElement>("[data-bpe-stage]")!;
+    const noteEl = root.querySelector<HTMLElement>("[data-bpe-note]")!;
+    const stepEl = root.querySelector<HTMLElement>("[data-bpe-step]")!;
+    const vlist = root.querySelector<HTMLElement>("[data-bpe-vlist]")!;
+    const vcount = root.querySelector<HTMLElement>("[data-bpe-vcount]")!;
+    const field = root.querySelector<HTMLInputElement>("[data-bpe-text]")!;
+    const playLabel = root.querySelector<HTMLElement>("[data-bpe-playlabel]")!;
+    const btn = (a: string) => root.querySelector<HTMLButtonElement>(`[data-bpe-act="${a}"]`)!;
+
+    // Reverse map: a token's raw bytes (joined as "a,b,c") → its id/merge rank.
+    let rev: Map<string, number> | null = null;
+    let steps: Step[] = [{ seq: [], cands: [], chosen: null, note: "正在加载分词器…" }];
+    let last = 0;
+    let cur = 0;
+    let flash = -1;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const vchips = new Map<string, HTMLElement>();
+    // Scroll the side vocab list (only it, never the page) so the matching chip
+    // is visible when a token / candidate on the left is hovered.
+    const revealVchip = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      const cr = vlist.getBoundingClientRect();
+      let delta = 0;
+      if (r.top < cr.top) delta = r.top - cr.top - 6;
+      else if (r.bottom > cr.bottom) delta = r.bottom - cr.bottom + 6;
+      if (delta) vlist.scrollBy({ top: delta, behavior: "smooth" });
+    };
+    const hotVocab = (key: string, on: boolean) => {
+      const el = vchips.get(key);
+      if (!el) return;
+      el.classList.toggle("is-hot", on);
+      if (on) revealVchip(el);
+    };
+    const hotSeq = (key: string, on: boolean) => {
+      vchips.get(key)?.classList.toggle("is-hot", on);
+      // Tokens already present in the sequence with this exact key.
+      stage.querySelectorAll<HTMLElement>(`.bpe__tok[data-tok="${CSS.escape(key)}"]`).forEach((t) =>
+        t.classList.toggle("is-hot", on),
+      );
+      // A not-yet-formed merge result (a "预合并" candidate): light up the source
+      // pair it would merge from, plus its candidate pill.
+      const toks = stage.querySelectorAll<HTMLElement>(".bpe__tok");
+      const pills = stage.querySelectorAll<HTMLElement>(".bpe__cand");
+      steps[cur].cands.forEach((c, ci) => {
+        if (c.merged.key !== key) return;
+        toks[c.i]?.classList.toggle("is-hot", on);
+        toks[c.i + 1]?.classList.toggle("is-hot", on);
+        pills[ci]?.classList.toggle("is-hot", on);
+      });
+    };
+
+    // Wrap a byte run into a Unit: decode to a glyph, or show `\xHH` when the
+    // bytes aren't (yet) a complete UTF-8 character.
+    const makeUnit = (bytes: number[]): Unit => {
+      const key = bytes.join(",");
+      const s = TD.decode(Uint8Array.from(bytes));
+      const frag = s.includes("\uFFFD");
+      return { key, display: frag ? bytes.map(hex).join("") : s, id: rev?.get(key) ?? null, bytes, frag };
+    };
+
+    // Every byte run inside the input that is a real token → "possibly used".
+    const relevantVocab = (text: string): Unit[] => {
+      const out: Unit[] = [];
+      if (!rev) return out;
+      const bytes = [...TE.encode(text)];
+      const seen = new Set<string>();
+      for (let i = 0; i < bytes.length; i++) {
+        for (let j = i + 1; j <= bytes.length; j++) {
+          const run = bytes.slice(i, j);
+          const key = run.join(",");
+          if (seen.has(key)) continue;
+          if (rev.has(key)) {
+            seen.add(key);
+            out.push(makeUnit(run));
+          }
+        }
+      }
+      return out.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+    };
+
+    // Greedy min-id BPE replay starting from the input's individual bytes.
+    const compute = (text: string): Step[] => {
+      const out: Step[] = [];
+      let seq = [...TE.encode(text)].map((b) => makeUnit([b]));
+      let guard = 0;
+      while (guard++ < 4096) {
+        const cands: Cand[] = [];
+        for (let i = 0; i < seq.length - 1; i++) {
+          const bytes = seq[i].bytes.concat(seq[i + 1].bytes);
+          const id = rev?.get(bytes.join(","));
+          if (id !== undefined) {
+            cands.push({ i, a: seq[i], b: seq[i + 1], merged: makeUnit(bytes), id, chosen: false });
+          }
+        }
+        if (cands.length === 0) {
+          out.push({
+            seq: [...seq],
+            cands: [],
+            chosen: null,
+            note: seq.length <= 1 ? "合并成一个 Token，分词结束" : "相邻 Token 都无法再合并，分词结束",
+          });
+          break;
+        }
+        let best = cands[0];
+        for (const c of cands) if (c.id < best.id) best = c;
+        best.chosen = true;
+        out.push({
+          seq: [...seq],
+          cands,
+          chosen: best.i,
+          note: `有 ${cands.length} 对可合并，取合并后 ID 最小的：${best.a.display} + ${best.b.display} → ${best.merged.display}（ID ${best.id}）`,
+        });
+        seq = [...seq.slice(0, best.i), best.merged, ...seq.slice(best.i + 2)];
+      }
+      if (out.length === 0) out.push({ seq: [], cands: [], chosen: null, note: "输入为空" });
+      return out;
+    };
+
+    const tokHtml = (u: Unit, cls: string) =>
+      `<span class="bpe__tok ${cls} ${u.frag ? "is-frag" : ""}" data-tok="${esc(u.key)}">` +
+      `<b>${esc(u.display)}</b>${u.id !== null ? `<i>${u.id}</i>` : ""}</span>`;
+
+    // Rebuild the side vocab panel from the current input's relevant tokens.
+    const renderVocab = (units: Unit[]) => {
+      vchips.clear();
+      vcount.textContent = units.length ? `（${units.length}）` : "";
+      vlist.innerHTML = units.length
+        ? units
+            .map(
+              (u) =>
+                `<span class="bpe__vchip ${u.frag ? "is-frag" : ""}" data-vtok="${esc(u.key)}">` +
+                `<b>${esc(u.display)}</b><i>${u.id}</i></span>`,
+            )
+            .join("")
+        : `<span class="bpe__vempty">这段文本没有可合并的多字节 Token</span>`;
+      vlist.querySelectorAll<HTMLElement>("[data-vtok]").forEach((el) => {
+        const key = el.dataset.vtok ?? "";
+        vchips.set(key, el);
+        el.addEventListener("mouseenter", () => hotSeq(key, true));
+        el.addEventListener("mouseleave", () => hotSeq(key, false));
+      });
+    };
+
+    const render = () => {
+      const s = steps[cur];
+      const toks = s.seq
+        .map((u, i) => {
+          let cls = "";
+          if (s.chosen !== null && (i === s.chosen || i === s.chosen + 1)) cls = "is-chosen";
+          if (i === flash) cls = "is-merged";
+          return tokHtml(u, cls);
+        })
+        .join('<span class="bpe__plus"></span>');
+
+      const cands = s.cands.length
+        ? `<div class="bpe__cands">${s.cands
+            .map(
+              (c) =>
+                `<button class="bpe__cand ${c.chosen ? "is-chosen" : ""}" data-pair="${c.i}" data-merged="${esc(c.merged.key)}">` +
+                `${esc(c.a.display)} + ${esc(c.b.display)} <span class="bpe__arr">→</span> ${esc(c.merged.display)}</button>`,
+            )
+            .join("")}</div>`
+        : s.seq.length
+          ? `<div class="bpe__cands"><span class="badge badge-success">已无可合并的相邻对</span></div>`
+          : "";
+
+      stage.innerHTML = `<div class="bpe__seq">${toks || '<span class="bpe__empty">在上方输入文本</span>'}</div>${cands}`;
+      noteEl.textContent = s.note;
+      stepEl.textContent = rev ? `第 ${cur + 1} / ${steps.length} 步 · ${s.seq.length} 个 Token` : "";
+      btn("prev").disabled = cur === 0;
+      btn("next").disabled = cur === last;
+      btn("reset").disabled = cur === 0;
+      btn("play").disabled = last === 0;
+      flash = -1;
+
+      // Reflect this step onto the vocab side: every token that *could* be
+      // formed this step (each mergeable adjacent pair's result) reads normal,
+      // and the smallest-id one that actually wins gets the cyan "chosen"
+      // treatment. Everything else dims. On the final step there's no candidate,
+      // so light up the resulting token sequence instead.
+      vchips.forEach((el) => el.classList.remove("is-active", "is-chosen", "is-hot"));
+      if (s.cands.length) {
+        for (const c of s.cands) vchips.get(c.merged.key)?.classList.add("is-active");
+        const chosenCand = s.cands.find((c) => c.chosen);
+        if (chosenCand) vchips.get(chosenCand.merged.key)?.classList.add("is-chosen");
+      } else {
+        const inSeq = new Set(s.seq.map((u) => u.key));
+        vchips.forEach((el, key) => el.classList.toggle("is-active", inSeq.has(key)));
+      }
+
+      stage.querySelectorAll<HTMLElement>(".bpe__tok").forEach((tk) => {
+        const key = tk.dataset.tok ?? "";
+        tk.addEventListener("mouseenter", () => hotVocab(key, true));
+        tk.addEventListener("mouseleave", () => hotVocab(key, false));
+      });
+
+      stage.querySelectorAll<HTMLElement>(".bpe__cand").forEach((pill) => {
+        const i = Number(pill.dataset.pair);
+        const merged = pill.dataset.merged ?? "";
+        const toks = stage.querySelectorAll<HTMLElement>(".bpe__tok");
+        pill.addEventListener("mouseenter", () => {
+          toks[i]?.classList.add("is-hot");
+          toks[i + 1]?.classList.add("is-hot");
+          hotVocab(merged, true);
+        });
+        pill.addEventListener("mouseleave", () => {
+          toks[i]?.classList.remove("is-hot");
+          toks[i + 1]?.classList.remove("is-hot");
+          hotVocab(merged, false);
+        });
+      });
+    };
+
+    const next = () => {
+      if (cur >= last) return stopPlay();
+      flash = steps[cur].chosen ?? -1;
+      cur++;
+      render();
+    };
+    const prev = () => {
+      if (cur === 0) return;
+      cur--;
+      render();
+    };
+    const reset = () => {
+      stopPlay();
+      cur = 0;
+      render();
+    };
+
+    const stopPlay = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+      btn("play").setAttribute("aria-pressed", "false");
+      playLabel.textContent = "自动播放";
+    };
+    const play = () => {
+      if (timer) return stopPlay();
+      if (cur === last) cur = 0;
+      btn("play").setAttribute("aria-pressed", "true");
+      playLabel.textContent = "暂停";
+      timer = setInterval(() => {
+        if (cur >= last) stopPlay();
+        else next();
+      }, 1200);
+    };
+
+    const rebuild = () => {
+      if (!rev) return;
+      stopPlay();
+      steps = compute(field.value);
+      last = steps.length - 1;
+      cur = 0;
+      flash = -1;
+      renderVocab(relevantVocab(field.value));
+      render();
+    };
+
+    btn("next").addEventListener("click", () => {
+      stopPlay();
+      next();
+    });
+    btn("prev").addEventListener("click", () => {
+      stopPlay();
+      prev();
+    });
+    btn("reset").addEventListener("click", reset);
+    btn("play").addEventListener("click", play);
+    field.addEventListener("input", () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(rebuild, 140);
+    });
+    root.querySelectorAll<HTMLButtonElement>("[data-bpe-preset]").forEach((b) => {
+      b.addEventListener("click", () => {
+        field.value = b.dataset.bpePreset ?? "";
+        rebuild();
+      });
+    });
+
+    render(); // loading state
+
+    // Load the real GPT-OSS tokenizer and build the byte → id reverse map, then
+    // run the first real tokenization.
+    try {
+      const mod: any = await import("gpt-tokenizer/encoding/o200k_harmony");
+      const dec: unknown = mod?.default?.bytePairEncodingCoreProcessor?.bytePairRankDecoder;
+      if (!Array.isArray(dec)) throw new Error("no decoder");
+      const map = new Map<string, number>();
+      for (let id = 0; id < dec.length; id++) {
+        const v = dec[id];
+        let bytes: number[] | null = null;
+        if (typeof v === "string") bytes = [...TE.encode(v)];
+        else if (v instanceof Uint8Array) bytes = [...v];
+        else if (Array.isArray(v)) bytes = v as number[];
+        if (bytes && bytes.length) map.set(bytes.join(","), id);
+      }
+      rev = map;
+      rebuild();
+    } catch {
+      steps = [{ seq: [], cands: [], chosen: null, note: "分词器加载失败，请检查网络后刷新" }];
+      last = 0;
+      cur = 0;
+      render();
+    }
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-bpe]").forEach((el) => void initBpe(el));
+</script>

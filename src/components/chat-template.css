@@ -1,0 +1,179 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * Chat-template viewer styles — topic-specific (chat2token), NOT part of the
+ * shared design system. Imported by the two components that use them:
+ *   • ChatTemplate.astro  → the standalone `.chat-tmpl` code card
+ *   • TemplateLab.astro   → the interactive `.tlab` messages↔template lab
+ *
+ * Kept as a plain (global) stylesheet rather than Astro `<style>` because the
+ * token spans (`.ct-tok`) are emitted as a raw HTML string via `set:html`, so
+ * they never receive Astro's scoping attribute and scoped selectors wouldn't
+ * match them.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* Every span is tinted by the role/function it belongs to, mirroring the
+ * playground's Chat Template pane (theme.css `--color-role-*` → same hues as
+ * MessageView's `--mv-*`). Special tokens get the hue as *text* + bold;
+ * ordinary content just gets the faint 15%-tint wash. */
+.chat-tmpl,
+.tlab {
+  --ct-system: oklch(0.62 0.17 300);
+  --ct-schema: oklch(0.72 0.16 350);
+  --ct-user: var(--color-primary-500);
+  --ct-assistant: var(--color-success-500);
+  --ct-tool: var(--color-accent-500);
+}
+.chat-tmpl .ct-tok,
+.tlab .ct-tok {
+  background: color-mix(in oklch, var(--seg) 15%, transparent);
+  border-radius: 2px;
+}
+.chat-tmpl .ct-tok--sp,
+.tlab .ct-tok--sp {
+  font-weight: 700;
+  color: var(--seg);
+}
+
+/* ── Interactive Messages ↔ Chat Template lab (TemplateLab.astro) ──────────
+ * Two panes — left: shared <MessageView> (Chat/Messages/JSON); right: a <Tabs>
+ * over the rendered template per family — plus a shared role legend and a hover
+ * bus driven by `[data-link]` on the root (matched nodes get `.tlab-lit`).
+ *
+ * Pure-white panel framing the whole lab. White (not the tinted surface) is
+ * deliberate: the JSON view's own CodeBlock card sits on ~white, so it blends
+ * instead of reading as a card-in-a-card. */
+.tlab {
+  /* Break out of the 48rem prose column and center in the viewport, capped
+   * wider than the column but always leaving >=1.5rem of breathing room on
+   * each side when the screen is narrow. White panel, no border. */
+  width: min(62rem, 100vw - 3rem);
+  margin-left: 50%;
+  transform: translateX(-50%);
+  margin-top: 1.75rem;
+  margin-bottom: 1.75rem;
+  padding: 1.1rem 1.5rem;
+  background: oklch(1 0 0);
+  border-radius: 0.9rem;
+  /* Pure white throughout: the Chat flow box and the JSON code block both use
+   * --color-code-bg (a near-white 0.99), which reads gray on the 1.0 panel. */
+  --color-code-bg: oklch(1 0 0);
+}
+.tlab__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 1.25rem;
+}
+@media (max-width: 680px) {
+  .tlab__body {
+    grid-template-columns: 1fr;
+  }
+}
+.tlab__pane {
+  min-width: 0;
+}
+.tlab__plabel {
+  margin-bottom: 0.55rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+/* The embedded MessageView is framed by the pane, not its own margins. The
+ * extra `.tlab` raises specificity above MessageView's own scoped
+ * `.msg-view[data-astro-cid] { margin: 1.75rem 0 }` (which loads later), so the
+ * reset actually wins — otherwise a ~1.75rem gap opens above the toggle. */
+.tlab .tlab__pane .msg-view {
+  margin: 0;
+}
+
+/* Long content scrolls INSIDE the panel; the label + tab header stay put.
+ * (The scroll box is the `.tab-panels` body of each pane's <Tabs>, not the
+ * whole pane — otherwise the toggle would scroll away with the content.) */
+.tlab .tab-panels {
+  max-height: 26rem;
+  overflow: auto;
+}
+
+/* Template pane — override the inherited `.prose pre` chrome (border / bg /
+ * shadow / padding); the lab panel is the frame, not each pre. */
+.tlab .tlab__pre {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  overflow: visible;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tlab .tlab__pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--color-ink);
+}
+.tlab .tlab__pre .line {
+  display: block;
+  /* No line-number gutter here, so empty lines would collapse — floor each
+   * line at one row so blank lines in the template keep their structure. */
+  min-height: 1.65em;
+}
+
+/* Hover bus — when linking is active (`data-link` on the root), dim every
+ * role/message element in the body, then un-dim the ones JS tagged `.tlab-lit`
+ * (a whole role for legend/seg hover, or a single message for message hover). */
+.tlab[data-link] .tlab__body [data-seg],
+.tlab[data-link] .tlab__body [data-msg] {
+  opacity: 0.3;
+  transition: opacity 0.12s ease;
+}
+.tlab[data-link] .tlab__body .tlab-lit {
+  opacity: 1;
+}
+
+/* Legend — a flat row under the panes (no card footer). The hint sits at the
+ * far right (`margin-left:auto`). */
+.tlab__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--color-rule-soft);
+}
+.tlab__legend-label {
+  margin-left: auto;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.tlab__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: oklch(0.96 0 0);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.tlab__sw {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 2px;
+  background: var(--seg);
+}
+.tlab__chip:hover,
+.tlab__chip[aria-pressed="true"] {
+  border-color: color-mix(in oklch, var(--seg) 45%, transparent);
+  background: color-mix(in oklch, var(--seg) 14%, white);
+  color: color-mix(in oklch, var(--seg) 70%, black);
+}

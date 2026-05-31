@@ -156,7 +156,7 @@ body {
 /* ── Reading column ─────────────────────────────────────────────────── */
 
 .column {
-  max-width: 40rem;
+  max-width: 48rem;
   margin: 0 auto;
   padding: 4.5rem 1.5rem 6rem;
   position: relative;
@@ -164,7 +164,7 @@ body {
 }
 
 .column.wide {
-  max-width: 56rem;
+  max-width: 60rem;
 }
 
 /* ── Prose / markdown surface ──────────────────────────────────────── */
@@ -223,6 +223,11 @@ body {
 .prose a:hover {
   text-decoration: underline;
 }
+/* A `.btn` rendered as a prose link (CTAs, playground buttons) must keep the
+ * button's bold label — `.prose a` above would otherwise thin it to 500. */
+.prose a.btn {
+  font-weight: 700;
+}
 
 .prose strong {
   /* Body is 500, so bold needs to jump to 700 to read as clearly heavier. */
@@ -250,7 +255,8 @@ body {
  * inset; line numbers are pure CSS counters on `.line`, no transformer
  * needed. */
 .prose pre,
-.prose pre.astro-code {
+.prose pre.astro-code,
+.code-block pre {
   background: var(--color-code-bg) !important;
   border: 1px solid var(--color-rule-soft);
   border-radius: 0.8rem;
@@ -262,11 +268,19 @@ body {
    * instead of "cut hole in the paper". */
   box-shadow: 0 1px 0 0 oklch(0.88 0 0 / 0.45);
 }
-.prose pre code {
+.prose pre code,
+.code-block pre code {
   background: transparent;
   padding: 0;
   color: var(--color-ink);
-  display: block;
+  /* inline-block + min-width:100% makes the <code> shrink-wrap to the
+   * widest line, so every `.line` block below spans that full width
+   * rather than just its own text. Without this, a *short* line's
+   * sticky `::before` line number is clamped to that short line's box
+   * and scrolls out of sight once a long line pushes the scroll far
+   * right — which is why the gutter number "disappeared". */
+  display: inline-block;
+  min-width: 100%;
   counter-reset: line;
 }
 /* Each line is its own block so vertical spacing is governed by
@@ -274,20 +288,34 @@ body {
  * `stripLineNewlines` Shiki transformer). The line number is the
  * line's `::before`, set to `position: sticky; left: 0` so it pins
  * to the gutter while long code lines scroll under it horizontally. */
-.prose pre.astro-code .line {
+.prose pre.astro-code .line,
+.code-block pre .line {
   display: block;
+  /* Reserve the number gutter as left padding (in BOTH modes) so the
+   * number layout never changes: in soft-wrap mode wrapped lines hang at
+   * this edge instead of sliding under the number, and the number itself
+   * is pulled back into the gutter by the negative margin on ::before. */
+  padding-left: 2.95rem;
   padding-right: 1.25rem;
 }
-.prose pre.astro-code .line::before {
+.prose pre.astro-code .line::before,
+.code-block pre .line::before {
   counter-increment: line;
   content: counter(line);
   display: inline-block;
   position: sticky;
   left: 0;
-  width: 2.4rem;
-  padding: 0 0.85rem 0 1rem;
-  margin-right: 0.55rem;
+  box-sizing: border-box;
+  /* Fill the whole gutter (matches .line's padding-left) and reserve the
+   * gap as the number's own right padding, so the digits right-align with
+   * plenty of room. Pulled into the gutter via the negative margin. */
+  width: 2.95rem;
+  padding-right: 0.9rem;
+  margin-left: -2.95rem;
   text-align: right;
+  /* Never let the digits wrap/break — even in soft-wrap mode where the
+   * line sets overflow-wrap: anywhere. */
+  white-space: nowrap;
   color: var(--color-muted);
   background: var(--color-code-bg);
   font-variant-numeric: tabular-nums;
@@ -297,8 +325,89 @@ body {
   z-index: 1;
 }
 /* Shiki emits a trailing empty `.line` for source ending in `\n`. Hide it. */
-.prose pre.astro-code .line:last-child:empty {
+.prose pre.astro-code .line:last-child:empty,
+.code-block pre .line:last-child:empty {
   display: none;
+}
+
+/* Shared line highlight (CodeBlock `lineHighlights` / `highlight`).
+ *
+ * A light tint of the per-line `--hl` color runs across the whole row AND the
+ * number gutter — the gutter ::before reuses the very same opaque tint, so it
+ * both reads as "the number is highlighted too" and still masks long lines
+ * scrolling underneath. Kept pale (16% toward white) so syntax stays legible.
+ * `--hl-accent` adds a left bar for key-lines the prose is pointing at. */
+.prose pre.astro-code .line.line--hl,
+.code-block pre .line.line--hl {
+  --hl-bg: color-mix(in oklch, var(--hl) 16%, white);
+  background: var(--hl-bg);
+}
+.prose pre.astro-code .line.line--hl::before,
+.code-block pre .line.line--hl::before {
+  background: var(--hl-bg);
+  /* The line number rides the same hue family as its row. Darken toward
+   * black (not ink) so the hue is preserved — mixing a pink hue toward the
+   * blue-cyan ink would shortcut through purple in OKLCH. */
+  color: color-mix(in oklch, var(--hl) 70%, black);
+  /* A little left accent bar on every highlighted row — over a run of same-
+   * role lines (e.g. a JSON message block) it reads as a color-coded rail.
+   * Painted on the sticky gutter ::before so it stays above the opaque number
+   * background, which would otherwise bury it. */
+  box-shadow: inset 3px 0 0 0 var(--hl);
+  opacity: 1;
+}
+
+/* Hover bridge — a prose <LineRef> lights up its target rows on hover. Reuses
+ * the shared `--hl` treatment (standard cyan) + the left accent bar, and
+ * eases in/out so it reads as a transient pointer, not a permanent mark. */
+.prose pre.astro-code .line,
+.code-block pre .line {
+  transition: background-color 0.15s ease;
+}
+.prose pre.astro-code .line.line--ref-hl,
+.code-block pre .line.line--ref-hl {
+  --hl: var(--color-primary-500);
+  --hl-bg: color-mix(in oklch, var(--hl) 16%, white);
+  background: var(--hl-bg);
+}
+.prose pre.astro-code .line.line--ref-hl::before,
+.code-block pre .line.line--ref-hl::before {
+  background: var(--hl-bg);
+  color: color-mix(in oklch, var(--hl) 70%, black);
+  box-shadow: inset 3px 0 0 0 var(--hl);
+  opacity: 1;
+}
+
+/* The reference phrase itself — a subtle cyan dotted underline + help cursor,
+ * so it reads as "hover me". */
+.line-ref {
+  color: var(--color-primary-700);
+  text-decoration: underline dotted color-mix(in oklch, var(--color-primary-500) 60%, transparent);
+  text-underline-offset: 3px;
+  cursor: help;
+  border-radius: 0.2rem;
+  transition: background-color 0.15s ease;
+}
+.line-ref:hover,
+.line-ref:focus-visible {
+  background: color-mix(in oklch, var(--color-primary-500) 12%, transparent);
+  outline: none;
+}
+
+/* Soft-wrap mode — toggled by the wrap button on the card (CodeBlock).
+ * Only flips wrapping on: the gutter (padding-left + ::before margin) is
+ * already baked into the base `.line`, so the number stays right-aligned
+ * in the exact same place and wrapped continuation hangs at the gutter. */
+.code-block.is-wrapped pre {
+  overflow-x: hidden;
+}
+.code-block.is-wrapped pre code {
+  display: block;
+  min-width: 0;
+}
+.code-block.is-wrapped pre .line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Code block card — Carbon-style window chrome (CodeBlock.astro).
@@ -366,7 +475,13 @@ body {
   white-space: nowrap;
 }
 
-.code-block__copy {
+.code-block__actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.code-block__btn {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -380,15 +495,19 @@ body {
   cursor: pointer;
   transition: color 0.15s ease;
 }
-.code-block__copy:hover {
+.code-block__btn:hover {
   color: var(--color-ink);
 }
-.code-block__copy:active {
+.code-block__btn:active {
   transform: translateY(0.5px);
 }
-.code-block__copy:focus-visible {
+.code-block__btn:focus-visible {
   outline: 2px solid color-mix(in oklch, var(--color-primary) 40%, transparent);
   outline-offset: 1px;
+}
+/* Wrap toggle reads as "on" in cyan once soft-wrap is engaged. */
+.code-block__wrap.is-on {
+  color: var(--color-primary-700);
 }
 .code-block__icon {
   display: block;
@@ -888,7 +1007,10 @@ textarea.field {
   flex-shrink: 0;
 }
 
-.callout-primary { --cl-bg: var(--color-primary-tint); --cl-ink: var(--color-primary-ink); }
+/* The cyan -100 fill read too heavy, so the primary callout drops to the
+ * palest -50 wash for a calmer surface + better text contrast. Every
+ * other tone keeps the standard -tint / -ink mapping. */
+.callout-primary { --cl-bg: var(--color-primary-50); --cl-ink: var(--color-primary-ink); }
 .callout-accent  { --cl-bg: var(--color-accent-tint);  --cl-ink: var(--color-accent-ink);  }
 .callout-success { --cl-bg: var(--color-success-tint); --cl-ink: var(--color-success-ink); }
 .callout-warning { --cl-bg: var(--color-warning-tint); --cl-ink: var(--color-warning-ink); }
@@ -1069,63 +1191,67 @@ textarea.field {
  * cancellation surface and predictable restarts, dodging the "CSS
  * @keyframes won't re-fire on the second [open]" gotcha. */
 
-/* ── Tabs — sliding underline indicator.
+/* ── Tabs — sliding pill toggle.
  *
- *   The active tab does *not* draw its own bottom border — that
- *   would teleport instantly between tabs. Instead the `.tabs`
- *   element owns a single `::after` rectangle positioned via two
+ *   A rounded pill slides behind the active tab instead of teleporting.
+ *   The `.tabs` element owns a single `::after` pill positioned via two
  *   custom properties (`--tab-x` / `--tab-w`) which JS updates on
- *   selection. The transition curve is ease-out-back, so the bar
- *   overshoots slightly before settling — that's the "spring"
- *   the user asked for, no library needed.
+ *   selection; the spring curve gives a tiny settle without a library.
  *
- *   `aria-selected` drives text styling so the markup stays
- *   accessible; JS only toggles the attribute and updates the
- *   two CSS variables. */
+ *   `aria-selected` drives text styling so the markup stays accessible;
+ *   JS only toggles the attribute and updates the two CSS variables. */
 
 .tabs {
   position: relative;
-  display: flex;
+  display: inline-flex;
   gap: 0;
-  margin: 1.25rem 0 0;
-  border-bottom: 1px solid var(--color-rule);
+  margin: 0;
+  padding: 0.18rem;
+  border-radius: 0.6rem;
+  /* Neutral-gray track; the moving pill is pure white and the active label
+   * carries all the color. */
+  background: oklch(0.95 0 0);
 }
 .tabs::after {
   content: "";
   position: absolute;
   left: var(--tab-x, 0);
-  bottom: -1px;
+  top: 0.18rem;
   width: var(--tab-w, 0);
-  height: 2px;
-  background: var(--color-primary);
-  border-radius: 2px;
+  height: calc(100% - 0.36rem);
+  background: oklch(1 0 0);
+  border-radius: 0.45rem;
+  box-shadow: 0 1px 2px oklch(0.5 0.02 250 / 0.14);
   pointer-events: none;
+  z-index: 0;
   transition:
-    left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-    width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    left 0.28s cubic-bezier(0.34, 1.4, 0.64, 1),
+    width 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 .tab {
+  position: relative;
+  z-index: 1;
   font: inherit;
-  font-weight: 500;
-  font-size: 0.94rem;
+  font-weight: 700;
+  font-size: 0.8rem;
   background: transparent;
   border: 0;
-  padding: 0.55rem 0.95rem 0.75rem;
+  padding: 0.32rem 0.8rem;
   color: var(--color-muted);
   cursor: pointer;
   transition: color 0.18s ease;
 }
 .tab:hover { color: var(--color-ink); }
-.tab[aria-selected="true"] { color: var(--color-primary-700); }
+.tab[aria-selected="true"] { color: var(--color-primary-500); }
 .tab:focus-visible {
   outline: 2px solid var(--color-primary-300);
-  outline-offset: 3px;
-  border-radius: 0.3rem;
+  outline-offset: 2px;
+  border-radius: 0.4rem;
 }
 
-.tab-panels { margin-top: 0.4rem; }
+.tab-panels { margin-top: 0.7rem; }
 .tab-panel[hidden] { display: none; }
-.tab-panel > :first-child { margin-top: 0.6rem; }
+.tab-panel > :first-child { margin-top: 0; }
 .tab-panel > :last-child  { margin-bottom: 0; }
 
 /* ── Site frame (header / footer for the sandbox) ─────────────────── */
@@ -1154,6 +1280,159 @@ textarea.field {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-muted);
+}
+
+/* ── Table of contents — Notion-style floating rail (Toc.astro) ───────
+ *
+ * Pinned to the right edge, vertically centered. Collapsed it's a stack
+ * of right-aligned dashes (one per heading; h3 shorter than h2) — the
+ * section currently in view glows cyan and grows a touch longer. Hover
+ * or keyboard-focus the rail and the heading labels simply fade in — no
+ * layout animation, so nothing reflows or shifts (the labels always
+ * reserve their width; only opacity changes). The whole component is
+ * built from the page's own <h2>/<h3> by the bundled script, so dropping
+ * <Toc /> on any `.prose` page just works. Hidden where the viewport
+ * can't host it. */
+
+.toc {
+  position: fixed;
+  top: 50%;
+  right: 1.5rem;
+  transform: translateY(-50%);
+  z-index: 20;
+  font-family: var(--font-serif);
+  /* Sit above content but let clicks through the empty padding. */
+  pointer-events: none;
+}
+
+.toc__inner {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-height: 72vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.45rem;
+  scrollbar-width: none;
+}
+.toc__inner::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Absolutely positioned above the dashes so it never reserves layout
+ * space — appears purely by fading in, no shift of the list below. */
+.toc__title {
+  position: absolute;
+  right: 0.25rem;
+  bottom: calc(100% + 0.15rem);
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  transition: opacity 0.2s ease;
+}
+.toc:hover .toc__title,
+.toc:focus-within .toc__title {
+  opacity: 1;
+}
+
+.toc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.toc__link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.2rem 0.25rem;
+  border-radius: 0.45rem;
+  text-decoration: none;
+  color: var(--color-muted);
+  transition:
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+.toc__link:hover {
+  color: var(--color-ink);
+}
+
+/* Label always reserves its width (capped + ellipsised) so revealing it
+ * is a pure opacity fade with zero reflow. The bars stay pinned right;
+ * the invisible labels just sit to their left in the gutter. */
+.toc__label {
+  max-width: 12rem;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  transition:
+    opacity 0.22s ease,
+    color 0.18s ease;
+}
+.toc__item[data-level="3"] .toc__label {
+  font-size: 0.78rem;
+  padding-right: 0.35rem;
+}
+.toc:hover .toc__label,
+.toc:focus-within .toc__label {
+  opacity: 1;
+}
+
+.toc__bar {
+  flex: none;
+  height: 2px;
+  width: 1.4rem;
+  border-radius: 2px;
+  background: var(--color-rule);
+  transition:
+    background-color 0.18s ease,
+    width 0.18s ease;
+}
+.toc__item[data-level="3"] .toc__bar {
+  width: 0.85rem;
+}
+.toc__link:hover .toc__bar {
+  background: var(--color-ink-soft);
+}
+.toc__item.is-active .toc__bar {
+  background: var(--color-primary-500);
+  width: 1.9rem;
+}
+.toc__item[data-level="3"].is-active .toc__bar {
+  width: 1.25rem;
+}
+.toc__item.is-active .toc__label {
+  color: var(--color-primary-700);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toc__inner,
+  .toc__title,
+  .toc__label,
+  .toc__bar,
+  .toc__link {
+    transition: none;
+  }
+}
+
+/* Not enough side gutter to host the (always-width-reserving) rail
+ * without overlapping the reading column — fall back to no TOC. */
+@media (max-width: 80rem) {
+  .toc {
+    display: none;
+  }
 }
 
 /* ── Palette ramps — one row per tone, 6 chips per row. ─────────── */

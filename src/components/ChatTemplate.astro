@@ -1,0 +1,61 @@
+---
+// Rendered chat-template viewer — the static cousin of the playground's Chat
+// Template pane. Reuses the <CodeBlock> card chrome (title bar, dots, wrap +
+// copy buttons) but, instead of Shiki syntax highlight, paints each span by the
+// role/function it belongs to so `<|im_start|>`, tool schema, user/assistant/
+// tool turns etc. are color-coded exactly like the playground.
+//
+// Segments are derived at build time by `highlightChatTemplate`; see that
+// module for the per-family rules. The copy/wrap buttons are driven by the
+// shared listeners declared in CodeBlock.astro.
+//
+// The line markup is assembled as a raw HTML string (not JSX) so NO stray
+// whitespace leaks between spans — inside a <pre> every space/newline is
+// significant, and JSX indentation would visibly corrupt the template.
+import { Copy, Check, WrapText } from "@lucide/astro";
+import { renderTemplateLines, type Seg, type TemplateFamily } from "~/lib/chatTemplateHighlight";
+import "./chat-template.css";
+
+interface Props {
+  code: string;
+  family: TemplateFamily;
+  /** Header label. */
+  title?: string;
+  id?: string;
+  /** Segment for any text before the first role marker (e.g. a bare model-
+   * output snippet that has no `<|im_start|>`). Defaults to neutral. */
+  baseSeg?: Seg;
+}
+
+const { code, family, title, id, baseSeg } = Astro.props;
+const codeHtml = renderTemplateLines(code, family, baseSeg ?? null);
+---
+
+<figure class="code-block chat-tmpl" id={id}>
+  <figcaption class="code-block__bar">
+    <span class="code-block__dots" aria-hidden="true">
+      <i></i><i></i><i></i>
+    </span>
+    <span class="code-block__title">{title ?? family}</span>
+    <span class="code-block__actions">
+      <button
+        class="code-block__btn code-block__wrap"
+        type="button"
+        aria-label="切换自动换行"
+        aria-pressed="false"
+      >
+        <WrapText class="code-block__icon" size={15} strokeWidth={2} />
+      </button>
+      <button
+        class="code-block__btn code-block__copy"
+        type="button"
+        data-code={code}
+        aria-label="复制代码"
+      >
+        <Copy class="code-block__icon code-block__icon--copy" size={15} strokeWidth={2} />
+        <Check class="code-block__icon code-block__icon--check" size={15} strokeWidth={2.4} />
+      </button>
+    </span>
+  </figcaption>
+  <pre><code set:html={codeHtml}></code></pre>
+</figure>

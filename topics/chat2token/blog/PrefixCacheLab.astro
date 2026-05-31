@@ -1,0 +1,370 @@
+---
+// Prefix-cache (KV cache) mini-demo, deliberately abstract:
+//   1. type some text → it's tokenized into chips (real o200k_harmony tokenizer)
+//   2. hit「缓存」to store the current token sequence — the cache holds up to
+//      CAP entries (capacity); adding past that evicts the oldest.
+//   3. edit the text → we match it against EVERY cached entry and keep the one
+//      sharing the longest common token prefix. That prefix is green (命中,
+//      reused); everything from the first divergence on is orange (需重算).
+// One picture for the whole KV-cache prefix rule, now with a real multi-entry
+// cache listed below.
+import { Database } from "@lucide/astro";
+import "./prefix-cache-lab.css";
+
+interface Props {
+  title?: string;
+  text?: string;
+  /** Cache capacity, measured in TOKENS (shared prefixes only count once). */
+  capacity?: number;
+}
+
+const {
+  title = "前缀缓存命中",
+  text = "语言的边界就是我世界的边界",
+  capacity = 48,
+} = Astro.props;
+---
+
+<div class="pcache" data-pcache data-pcache-cap-max={capacity}>
+  <div class="pcache__head">
+    <span class="pcache__title">{title}</span>
+    <span class="pcache__status" data-pcache-status></span>
+  </div>
+
+  <div class="pcache__bar">
+    <input
+      class="field pcache__field"
+      type="text"
+      data-pcache-text
+      value={text}
+      maxlength="80"
+      spellcheck="false"
+      autocomplete="off"
+      aria-label="输入文本"
+    />
+    <button class="btn btn-primary pcache__save" type="button" data-pcache-cache>
+      <Database size={15} strokeWidth={2.5} /> 缓存当前
+    </button>
+  </div>
+
+  <div class="pcache__toks" data-pcache-toks></div>
+
+  <p class="pcache__note" data-pcache-note></p>
+
+  <div class="pcache__legend">
+    <span class="pcache__key"><i class="pcache__sw pcache__sw--hit"></i>命中缓存（直接复用）</span>
+    <span class="pcache__key"><i class="pcache__sw pcache__sw--dead"></i>需重算</span>
+    <span class="pcache__key"><i class="pcache__sw pcache__sw--none"></i>未用到（缓存里的其他分支）</span>
+  </div>
+
+  <div class="pcache__cache">
+    <div class="pcache__cache-head">
+      <span class="pcache__cache-label">缓存占用 · 共享前缀只存一份</span>
+      <span class="pcache__cap" data-pcache-cap></span>
+      <button class="pcache__clear" type="button" data-pcache-clear>清空</button>
+    </div>
+    <div class="pcache__capbar"><span class="pcache__capfill" data-pcache-capfill></span></div>
+    <div class="pcache__list" data-pcache-list></div>
+  </div>
+</div>
+
+<script>
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const lcp = (a: number[], b: number[]) => {
+    const n = Math.min(a.length, b.length);
+    let i = 0;
+    while (i < n && a[i] === b[i]) i++;
+    return i;
+  };
+
+  const hex = (b: number) => "\\x" + b.toString(16).toUpperCase().padStart(2, "0");
+
+  interface Entry { id: number; text: string; tokens: number[] }
+  interface TNode { tok: number; disp: string; children: TNode[]; hit: boolean }
+
+  async function initPrefixCache(root: HTMLElement) {
+    const field = root.querySelector<HTMLInputElement>("[data-pcache-text]")!;
+    const toksEl = root.querySelector<HTMLElement>("[data-pcache-toks]")!;
+    const noteEl = root.querySelector<HTMLElement>("[data-pcache-note]")!;
+    const statusEl = root.querySelector<HTMLElement>("[data-pcache-status]")!;
+    const cacheBtn = root.querySelector<HTMLButtonElement>("[data-pcache-cache]")!;
+    const listEl = root.querySelector<HTMLElement>("[data-pcache-list]")!;
+    const capEl = root.querySelector<HTMLElement>("[data-pcache-cap]")!;
+    const capFill = root.querySelector<HTMLElement>("[data-pcache-capfill]")!;
+    const clearBtn = root.querySelector<HTMLButtonElement>("[data-pcache-clear]")!;
+    const CAP = Math.max(4, Number(root.dataset.pcacheCapMax) || 48);
+
+    let encode: ((s: string) => number[]) | null = null;
+    let decode: ((t: number[]) => string) | null = null;
+    const idBytes = new Map<number, number[]>();
+    const TD = new TextDecoder();
+    let cache: Entry[] = [];
+    let seq = 0;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    // Visible substring each token covers in the current text (so multi-byte
+    // CJK / emoji always show as real glyphs, never replacement chars).
+    const piecesOf = (text: string, toks: number[]): string[] => {
+      if (!decode) return [];
+      const out: string[] = [];
+      let prev = 0;
+      for (let i = 0; i < toks.length; i++) {
+        const off = decode(toks.slice(0, i + 1)).length;
+        out.push(text.slice(prev, off));
+        prev = off;
+      }
+      return out;
+    };
+
+    // Display string per token, decoding EACH token's own bytes independently:
+    // a complete character (or run) shows as a glyph; a byte fragment that
+    // doesn't form a whole character on its own shows its raw bytes as `\xHH`.
+    // (We avoid cumulative attribution — it lets one token "steal" the glyph of
+    // a neighbour and leaves clean tokens like ～ wrongly rendered as hex.)
+    const dispOf = (text: string, toks: number[]): string[] => {
+      if (idBytes.size) {
+        return toks.map((t) => {
+          const b = idBytes.get(t);
+          if (!b || !b.length) return "·";
+          const s = TD.decode(Uint8Array.from(b));
+          return s.includes("\uFFFD") ? b.map(hex).join("") : s;
+        });
+      }
+      // Fallback: byte map unavailable → cumulative glyph attribution.
+      return piecesOf(text, toks).map((p) => (p === "" ? "·" : p));
+    };
+
+    // Best matching cache entry = the one sharing the longest token prefix.
+    const bestMatch = (cur: number[]): { hit: number; id: number } => {
+      let hit = 0;
+      let id = -1;
+      for (const e of cache) {
+        const h = lcp(e.tokens, cur);
+        if (h > hit) {
+          hit = h;
+          id = e.id;
+        }
+      }
+      return { hit, id };
+    };
+
+    const fmtTok = (s: string) => (s === "" ? "·" : esc(s).replace(/ /g, "␣"));
+
+    // Real prefix caches store the KV in a prefix tree (radix tree / paged
+    // blocks): a shared prefix is stored ONCE and branches where sequences
+    // diverge. We rebuild that tree from every cached sequence — its node count
+    // is the deduped footprint (= what counts against the token capacity).
+    const buildTrie = (): { root: TNode; nodes: number } => {
+      const root: TNode = { tok: -1, disp: "", children: [], hit: false };
+      let nodes = 0;
+      for (const e of cache) {
+        const disp = dispOf(e.text, e.tokens);
+        let node = root;
+        for (let i = 0; i < e.tokens.length; i++) {
+          const t = e.tokens[i];
+          let child = node.children.find((c) => c.tok === t);
+          if (!child) {
+            child = { tok: t, disp: disp[i] ?? "·", children: [], hit: false };
+            node.children.push(child);
+            nodes++;
+          }
+          node = child;
+        }
+      }
+      return { root, nodes };
+    };
+
+    // Mark the path the current input reuses (its longest cached prefix) green.
+    const markHit = (root: TNode, cur: number[], hit: number) => {
+      let node = root;
+      for (let i = 0; i < hit; i++) {
+        const child = node.children.find((c) => c.tok === cur[i]);
+        if (!child) break;
+        child.hit = true;
+        node = child;
+      }
+    };
+
+    const usedTokens = () => buildTrie().nodes;
+
+    const renderTree = (cur: number[], hit: number) => {
+      const { root, nodes } = buildTrie();
+      if (hit > 0) markHit(root, cur, hit);
+
+      capEl.innerHTML = `已用 <b>${nodes}</b> / ${CAP} Tokens`;
+      capFill.style.width = `${Math.min(100, (nodes / CAP) * 100)}%`;
+      capFill.classList.toggle("is-warn", nodes > CAP * 0.85);
+
+      if (cache.length === 0) {
+        listEl.innerHTML = `<div class="pcache__list-empty">还没有缓存。点上面「缓存当前」存一条，再存一条开头相同的，看看它们怎么共享前缀。</div>`;
+        return;
+      }
+
+      // Render the compressed trie as a connected tree. At a fork the first child
+      // continues on the SAME row; the others drop below, left-padded with GHOST
+      // chips (hidden, exact width) so their connector lands under the fork.
+      // Connectors are built from independent strokes (up/down/left/right); the
+      // strokes that lie on the CURRENT match are drawn green, so you can follow
+      // the matched prefix unambiguously even when it isn't the first branch.
+      const chip = (n: TNode, ghost: boolean) =>
+        `<span class="pcache__tok ${n.hit ? "is-hit" : ""}${ghost ? " is-ghost" : ""}">${fmtTok(n.disp)}</span>`;
+      // Stroke value: 0 = none, 1 = grey rule, 2 = green (on the matched path).
+      const seg = (up: number, down: number, left: number, right: number) => {
+        const s = (cls: string, v: number) =>
+          v ? `<i class="pcache__seg-${cls}${v === 2 ? " is-hit" : ""}"></i>` : "";
+        return `<span class="pcache__elbow">${s("up", up)}${s("down", down)}${s("left", left)}${s("right", right)}</span>`;
+      };
+
+      // Render the children of a fork. `ghost` indents dropped rows; `leftHit`
+      // marks whether the matched prefix flows INTO this fork from the left.
+      const fork = (
+        kids: TNode[],
+        ghost: string,
+        leftHit: boolean,
+        hasChain: boolean,
+      ): { first: string; extra: string[] } => {
+        const last = kids.length - 1;
+        const m = kids.findIndex((k) => k.hit); // matched child index, or -1
+        const r0 = renderNode(kids[0]);
+        // First child inline: left from chain, right to it, down to siblings.
+        const first =
+          seg(0, m >= 1 ? 2 : 1, hasChain ? (leftHit ? 2 : 1) : 0, m === 0 ? 2 : 1) + r0.first;
+        const v0 = m >= 1 ? 2 : 1;
+        const extra: string[] = r0.extra.map((l) => ghost + seg(v0, v0, 0, 0) + l);
+        for (let i = 1; i <= last; i++) {
+          const ri = renderNode(kids[i]);
+          const isLast = i === last;
+          const up = m >= i ? 2 : 1;
+          const right = m === i ? 2 : 1;
+          const down = isLast ? 0 : m > i ? 2 : 1;
+          extra.push(ghost + seg(up, down, 0, right) + ri.first);
+          if (isLast) {
+            ri.extra.forEach((l) => extra.push(ghost + seg(0, 0, 0, 0) + l));
+          } else {
+            const v = m > i ? 2 : 1;
+            ri.extra.forEach((l) => extra.push(ghost + seg(v, v, 0, 0) + l));
+          }
+        }
+        return { first, extra };
+      };
+
+      const renderNode = (node: TNode): { first: string; extra: string[] } => {
+        const chain: TNode[] = [];
+        let curN = node;
+        while (true) {
+          chain.push(curN);
+          if (curN.children.length === 1) curN = curN.children[0];
+          else break;
+        }
+        const real = chain.map((n) => chip(n, false)).join("");
+        const ghost = chain.map((n) => chip(n, true)).join("");
+        if (curN.children.length <= 1) return { first: real, extra: [] };
+        const f = fork(curN.children, ghost, curN.hit === true, true);
+        return { first: real + f.first, extra: f.extra };
+      };
+
+      const lines: string[] = [];
+      const tops = root.children;
+      if (tops.length === 1) {
+        const r = renderNode(tops[0]); // single trunk = the root itself
+        lines.push(r.first, ...r.extra);
+      } else {
+        // Several trunks with no common first token: connect them at column 0.
+        const f = fork(tops, "", false, false);
+        lines.push(f.first, ...f.extra);
+      }
+
+      listEl.innerHTML = lines.map((l) => `<div class="pcache__row">${l}</div>`).join("");
+    };
+
+    const render = () => {
+      if (!encode) return;
+      const text = field.value;
+      const cur = encode(text);
+      const disp = dispOf(text, cur);
+      const hasCache = cache.length > 0;
+      const { hit } = hasCache ? bestMatch(cur) : { hit: 0, id: -1 };
+      const miss = hasCache ? cur.length - hit : 0;
+
+      const html: string[] = [];
+      for (let i = 0; i < cur.length; i++) {
+        const cls = hasCache && i < hit ? "is-hit" : "is-dead";
+        html.push(`<span class="pcache__tok ${cls}">${fmtTok(disp[i])}</span>`);
+      }
+      toksEl.innerHTML = html.join("") || '<span class="pcache__empty">输入一些文本</span>';
+
+      if (!hasCache) {
+        statusEl.textContent = `${cur.length} Tokens · 未缓存`;
+        statusEl.className = "pcache__status";
+        noteEl.innerHTML = `这段文本被分成了 <b>${cur.length}</b> 个 Token。点「缓存当前」把它存进缓存，再回到上面改改看。`;
+      } else if (miss === 0) {
+        statusEl.textContent = `命中率 100%`;
+        statusEl.className = "pcache__status is-full";
+        noteEl.innerHTML = `和缓存里的某条前缀完全一致 → <b>${cur.length}</b> 个 Token 全部命中，<b>一个都不用重算</b>。`;
+      } else if (hit === 0) {
+        statusEl.textContent = `命中率 0%`;
+        statusEl.className = "pcache__status is-partial";
+        noteEl.innerHTML = `和缓存里任何一条都没有共同开头 → <b>${cur.length}</b> 个 Token 全部需要重算。`;
+      } else {
+        const rate = cur.length ? Math.round((hit / cur.length) * 100) : 0;
+        statusEl.textContent = `命中率 ${rate}%`;
+        statusEl.className = "pcache__status is-partial";
+        noteEl.innerHTML = `复用了缓存树里最长的公共前缀：前 <b>${hit}</b> 个 Token 直接命中；从第 <b>${hit + 1}</b> 个起分叉，后面 <b>${miss}</b> 个需重算。`;
+      }
+
+      renderTree(cur, hit);
+    };
+
+    const doCache = () => {
+      if (!encode) return;
+      const text = field.value;
+      const tokens = encode(text);
+      // De-dupe: refresh an identical entry to newest instead of duplicating.
+      cache = cache.filter((e) => e.text !== text);
+      cache.push({ id: ++seq, text, tokens });
+      // Capacity is measured in TOKENS (deduped by shared prefix). Evict the
+      // oldest entries until the tree fits — keep at least the newest one.
+      while (cache.length > 1 && usedTokens() > CAP) cache.shift();
+      render();
+    };
+
+    const scheduleRender = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(render, 140);
+    };
+
+    field.addEventListener("input", scheduleRender);
+    cacheBtn.addEventListener("click", doCache);
+    clearBtn.addEventListener("click", () => {
+      cache = [];
+      render();
+    });
+
+    try {
+      const mod: any = await import("gpt-tokenizer/encoding/o200k_harmony");
+      encode = (s: string) => mod.encode(s, { disallowedSpecial: new Set<string>() });
+      decode = (t: number[]) => mod.decode(t);
+      // Build id → raw-bytes map so byte-fragment tokens can show their `\xHH`.
+      try {
+        const TE = new TextEncoder();
+        const dec: unknown = mod?.default?.bytePairEncodingCoreProcessor?.bytePairRankDecoder;
+        if (Array.isArray(dec)) {
+          for (let id = 0; id < dec.length; id++) {
+            const v = dec[id];
+            let bytes: number[] | null = null;
+            if (typeof v === "string") bytes = [...TE.encode(v)];
+            else if (v instanceof Uint8Array) bytes = [...v];
+            else if (Array.isArray(v)) bytes = v as number[];
+            if (bytes && bytes.length) idBytes.set(id, bytes);
+          }
+        }
+      } catch { /* hex fallback simply won't apply */ }
+      render();
+    } catch {
+      noteEl.textContent = "分词器加载失败，请检查网络后刷新。";
+    }
+  }
+
+  document.querySelectorAll<HTMLElement>("[data-pcache]").forEach((el) => void initPrefixCache(el));
+</script>
