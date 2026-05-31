@@ -95,11 +95,21 @@ const searchTool: BuiltinTool = {
 const timeTool: BuiltinTool = {
   spec: {
     name: "current_time",
-    description: "Get the current date and time in ISO 8601 (UTC).",
+    description: "Get the current local date and time in ISO 8601 (with timezone offset).",
     parameters: { type: "object", properties: {}, required: [] },
   },
   async run() {
-    return new Date().toISOString();
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    // Local time with an explicit offset, e.g. "2026-05-30T17:17:05+08:00".
+    const offMin = -d.getTimezoneOffset();
+    const sign = offMin >= 0 ? "+" : "-";
+    const abs = Math.abs(offMin);
+    const offset = `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${offset}`
+    );
   },
 };
 

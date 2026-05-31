@@ -618,7 +618,7 @@ function buildKvCells(
     cells.push({
       start: i,
       end,
-      segment: topKey(segCounts, "control" as TokenSegment),
+      segment: topKey(segCounts, "assistant" as TokenSegment),
       state: topKey(stateCounts, "pending" as CellState),
       messageId: idCounts.size ? topKey(idCounts, "") : undefined,
     });

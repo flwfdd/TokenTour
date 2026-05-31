@@ -11,7 +11,7 @@ function roleToSegment(role: Role): TokenSegment {
   if (role === "user") return "user";
   if (role === "assistant") return "assistant";
   if (role === "tool") return "tool";
-  return "control";
+  return "system";
 }
 
 export interface ComputedSpans {
@@ -81,19 +81,37 @@ export function computeSpans(args: {
   let genStart = cleanedText.length;
   let genEnd = cleanedText.length;
   if (addGenerationPrompt) {
-    const withoutGen = renderChatTemplate({
-      messages,
-      tools,
-      family,
-      addGenerationPrompt: false,
-    });
-    const diff = cleanedText.length - withoutGen.length;
-    if (diff > 0) {
-      let i = 0;
-      const max = Math.min(cleanedText.length, withoutGen.length);
-      while (i < max && cleanedText[i] === withoutGen[i]) i++;
-      genStart = i;
-      genEnd = i + diff;
+    // Templates that glue the assistant trigger onto the last user turn
+    // (DeepSeek) produce no diff against `add_generation_prompt=false`, so
+    // rely on the declared trailing marker instead. The marker is the LAST
+    // occurrence followed by only whitespace — DeepSeek emits a few trailing
+    // newlines from its un-trimmed `{% if %}` tail, so a plain `endsWith`
+    // would miss it, and the same marker also appears glued to every earlier
+    // user turn.
+    const marker = bundle.generationPrompt;
+    const lastIdx = marker ? cleanedText.lastIndexOf(marker) : -1;
+    if (
+      marker &&
+      lastIdx >= 0 &&
+      /^\s*$/.test(cleanedText.slice(lastIdx + marker.length))
+    ) {
+      genStart = lastIdx;
+      genEnd = cleanedText.length;
+    } else {
+      const withoutGen = renderChatTemplate({
+        messages,
+        tools,
+        family,
+        addGenerationPrompt: false,
+      });
+      const diff = cleanedText.length - withoutGen.length;
+      if (diff > 0) {
+        let i = 0;
+        const max = Math.min(cleanedText.length, withoutGen.length);
+        while (i < max && cleanedText[i] === withoutGen[i]) i++;
+        genStart = i;
+        genEnd = i + diff;
+      }
     }
   }
 
@@ -130,7 +148,9 @@ export function computeSpans(args: {
   }
 
   if (genStart < genEnd) {
-    messageSpans.push({ start: genStart, end: genEnd, segment: "generation" });
+    // The generation prompt opens the assistant's turn, so it's coloured as
+    // `assistant` (it has no message id — it isn't a real message).
+    messageSpans.push({ start: genStart, end: genEnd, segment: "assistant", role: "assistant" });
   }
 
   // ── Tools-schema overlay ────────────────────────────────────────────────
@@ -164,7 +184,7 @@ export function computeSpans(args: {
       const te = cleanedText.length - post;
       for (let s = messageSpans.length - 1; s >= 0; s--) {
         const ms = messageSpans[s]!;
-        if (ms.start < te && ms.end > ts && ms.segment !== "generation") {
+        if (ms.start < te && ms.end > ts) {
           const replacement: SegmentSpan[] = [];
           if (ms.start < ts) {
             replacement.push({
@@ -204,9 +224,20 @@ export function computeSpans(args: {
       const ms = messageSpans[s]!;
       if (ms.segment !== "tools_schema") continue;
       for (const m of messages) {
-        if (!m.content || m.content.length < 4) continue; // skip short fragments that are likely false positives
+        if (!m.content) continue;
+        const len = m.content.length;
         const idx = cleanedText.indexOf(m.content, ms.start);
-        if (idx < 0 || idx + m.content.length > ms.end) continue;
+        if (idx < 0 || idx + len > ms.end) continue;
+        // Short content (e.g. an emoji-only system prompt, length 2) can match
+        // coincidentally inside the JSON schema, so the old code skipped
+        // anything < 4 chars — but that mislabeled short genuine content as
+        // tools_schema. The verbatim system content is ALWAYS present in the
+        // region, so a SOLE occurrence must be it; only bail when a short
+        // string is ambiguous (matches more than once in the schema region).
+        if (len < 4) {
+          const next = cleanedText.indexOf(m.content, idx + 1);
+          if (next >= 0 && next + len <= ms.end) continue;
+        }
         const replacement: SegmentSpan[] = [];
         if (ms.start < idx) {
           replacement.push({ start: ms.start, end: idx, segment: "tools_schema" });

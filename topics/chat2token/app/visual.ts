@@ -8,8 +8,6 @@ export const SEG_LABEL: Record<TokenSegment, string> = {
   user: "user",
   assistant: "assistant",
   tool: "tool result",
-  control: "control",
-  generation: "generation prompt",
 };
 
 export const SEG_ROLE_VAR: Record<TokenSegment, string> = {
@@ -20,18 +18,15 @@ export const SEG_ROLE_VAR: Record<TokenSegment, string> = {
   // The tool schema is injected into the system prompt, so it shares system's
   // (purple) family rather than the tool-result color.
   tools_schema: "--color-role-schema",
-  control: "--color-border",
-  // The generation prompt opens the assistant turn → assistant's family.
-  generation: "--color-role-generation",
 };
 
 /**
  * Resolve a role name (possibly arbitrary) to the matching `SEG_ROLE_VAR`
- * CSS variable, falling back to `control` so callers never have to guard
+ * CSS variable, falling back to `system` so callers never have to guard
  * for unknown roles when colouring message cards.
  */
 export function roleColorVar(role: string): string {
-  return SEG_ROLE_VAR[(role as TokenSegment) in SEG_ROLE_VAR ? (role as TokenSegment) : "control"];
+  return SEG_ROLE_VAR[(role as TokenSegment) in SEG_ROLE_VAR ? (role as TokenSegment) : "system"];
 }
 
 /**
@@ -123,8 +118,6 @@ export function deriveHoverRole(args: {
 export function matchesRoleHover(seg: TokenSegment, hoverRole: string | null): boolean {
   if (!hoverRole) return true;
   if (hoverRole === "tools_schema") return seg === "tools_schema";
-  if (hoverRole === "generation") return seg === "generation";
-  if (hoverRole === "control") return seg === "control";
   return seg === hoverRole;
 }
 
@@ -146,7 +139,7 @@ export function matchesHover(
 /**
  * Position of `t` within the contiguous run of tokens sharing the same
  * `messageId` (or, when `t.messageId` is empty, sharing the same `segment` for
- * control / generation tokens), as a fraction in [0, 1].
+ * tools-schema / generation-prompt tokens), as a fraction in [0, 1].
  *
  * Used so compare panes with differing tokenizations can scroll to roughly
  * the same conceptual offset inside the same message.

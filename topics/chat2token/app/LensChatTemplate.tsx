@@ -237,7 +237,7 @@ function proportionalScrollTop(src: HTMLPreElement, dst: HTMLPreElement): number
   const anchor = kids[idx] as HTMLElement;
   const msgid = anchor.getAttribute("data-msgid") ?? "";
   // Message tokens key off their messageId; the segments that carry NO
-  // messageId (tools_schema / generation / control / system prefix) must key
+  // messageId (tools_schema / generation prompt) must key
   // off their `data-seg` instead — otherwise every empty-msgid token gets
   // lumped into one bucket and the within-block ratio is garbage (the janky
   // tools-schema scrolling).

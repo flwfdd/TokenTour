@@ -1,128 +1,89 @@
 import { nanoid } from "nanoid";
-import type { Message, ToolSpec, TimelineStep, ModelArch, ToolCall } from "./types";
-import type { ChatProvider, ChatRequest, DeltaEvent } from "./providers";
-import { runAgentLoop } from "./agentLoop";
-import { stripSystemSentinel } from "./messageUtils";
+import type { Message } from "./types";
+import { findTool } from "./tools";
 
-export interface DemoTurn {
-  user?: string;
-  assistantContent?: string;
-  toolCalls?: { name: string; arguments: Record<string, unknown> }[];
-}
-
-export const DEMO_TRANSCRIPT: DemoTurn[] = [
-  {
-    user: "12 * (3 + 4) 等于多少？再告诉我现在 UTC 时间。",
-  },
-  {
-    assistantContent: "",
-    toolCalls: [
-      { name: "calculator", arguments: { expression: "12 * (3 + 4)" } },
-      { name: "current_time", arguments: {} },
-    ],
-  },
-  {
-    assistantContent:
-      "结果是 84。当前 UTC 时间见上面的工具返回。需要我把它换成本地时区吗？",
-  },
-];
-
-export interface DemoArgs {
-  arch: ModelArch;
-  initialMessages: Message[];
-  tools: ToolSpec[];
-  tokenizerKey?: string | null;
-  /** Chat-template family to render with (decoupled from `arch.family`). */
-  templateFamily: string;
-  onStep: (s: TimelineStep) => void;
-  onMessages: (m: Message[]) => void;
-  onAssistantDelta?: (d: string) => void;
-  delayMs?: number;
-}
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const chunkText = (s: string, n: number) =>
-  Array.from({ length: Math.ceil(s.length / n) }, (_, i) => s.slice(i * n, (i + 1) * n));
+/** System prompt that ships with the demo so it's a self-contained example
+ * (the conversation below leans on tool-calling, which this prompt encourages). */
+export const DEMO_SYSTEM_PROMPT =
+  "You are a concise, friendly assistant. When asked computations or facts, prefer calling the available tools instead of guessing.";
 
 /**
- * `ChatProvider` that replays a recorded transcript turn-by-turn instead
- * of hitting a real backend. Letting `runDemo` plug this into the same
- * `runAgentLoop` as live runs means there is exactly one render →
- * tokenize → KV-snapshot pipeline to maintain.
+ * Build a fresh demo conversation — no playback, no streaming, no timeline
+ * steps; the "Demo" button just initializes the conversation state to a
+ * representative example so the four panels have something to visualize.
+ *
+ * The question — "今天的年月日相乘是多少？" — depends on the *current* date, so
+ * the example is generated dynamically: the agent first calls `current_time`
+ * to learn today's date, then `calculator` to multiply 年 × 月 × 日, then states
+ * the answer. All three assistant turns carry a reasoning trace, and the tools
+ * are executed for real so the tool results (and the final number) are always
+ * internally consistent.
  */
-function createMockProvider(turns: DemoTurn[], delayMs: number): ChatProvider {
-  let cursor = 0;
-  return {
-    id: "demo-mock",
-    name: "Demo (recorded)",
-    async stream(_req: ChatRequest, onDelta) {
-      const turn = turns[cursor++];
-      if (!turn) return { content: "", toolCalls: [], finishReason: "stop" };
+export async function buildDemoMessages(): Promise<Message[]> {
+  const timeTool = findTool("current_time");
+  const calc = findTool("calculator");
 
-      // Pause so the surrounding compose/template/tokenize/prefill steps
-      // (emitted synchronously by `runAgentLoop` before this stream call)
-      // have time to animate before content starts arriving.
-      await sleep(delayMs);
+  const isoNow = timeTool ? await timeTool.run({}) : new Date().toString();
+  // Pull Y/M/D straight from the (local) ISO the tool returned so the numbers
+  // we reason about match the tool result exactly. Numeric (not zero-padded)
+  // so the calculator expression has no octal-literal pitfalls (e.g. `05`).
+  const now = new Date();
+  const md = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoNow);
+  const year = md ? Number(md[1]) : now.getFullYear();
+  const month = md ? Number(md[2]) : now.getMonth() + 1;
+  const day = md ? Number(md[3]) : now.getDate();
+  const expression = `${year} * ${month} * ${day}`;
+  const dateLabel = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-      let content = "";
-      if (turn.assistantContent) {
-        for (const ch of chunkText(turn.assistantContent, 8)) {
-          content += ch;
-          onDelta({ contentDelta: ch });
-          await sleep(delayMs / 2);
-        }
-      }
-      const toolCalls: ToolCall[] = (turn.toolCalls ?? []).map((tc) => ({
-        id: nanoid(8),
-        name: tc.name,
-        arguments: tc.arguments,
-      }));
-      const finishReason: DeltaEvent["finishReason"] =
-        toolCalls.length > 0 ? "tool_calls" : "stop";
-      return { content, toolCalls, finishReason };
+  const timeCallId = nanoid(8);
+  const calcCallId = nanoid(8);
+  const product = calc ? await calc.run({ expression }) : String(year * month * day);
+
+  return [
+    {
+      id: nanoid(8),
+      role: "user",
+      content: "今天的年月日相乘是多少？",
     },
-  };
-}
-
-export async function runDemo(args: DemoArgs): Promise<void> {
-  const {
-    arch,
-    initialMessages,
-    tools,
-    tokenizerKey = null,
-    templateFamily,
-    onStep,
-    onMessages,
-    onAssistantDelta,
-    delayMs = 250,
-  } = args;
-
-  // The first transcript entry is purely the user prompt — seed it into
-  // the message list (so the chat panel shows it before prefill starts),
-  // then let `runAgentLoop` drive the remaining assistant turns through
-  // the mock provider.
-  const seedUser = DEMO_TRANSCRIPT[0]?.user;
-  const startingMessages: Message[] = seedUser
-    ? [...initialMessages, { id: nanoid(8), role: "user", content: seedUser }]
-    : [...initialMessages];
-  onMessages(stripSystemSentinel(startingMessages));
-
-  const assistantTurns = DEMO_TRANSCRIPT.slice(1);
-  const provider = createMockProvider(assistantTurns, delayMs);
-
-  await runAgentLoop({
-    provider,
-    baseUrl: "",
-    apiKey: "",
-    model: "demo",
-    arch,
-    messages: startingMessages,
-    tools,
-    templateFamily,
-    tokenizerKey,
-    maxIterations: assistantTurns.length,
-    onStep,
-    onMessages: (m) => onMessages(stripSystemSentinel(m)),
-    onAssistantDelta,
-  });
+    {
+      id: nanoid(8),
+      role: "assistant",
+      content: "",
+      reasoning:
+        "用户要「年 × 月 × 日」的乘积，但我并不知道今天是几号——日期没法靠推理得到，必须先查。" +
+        "先调用 current_time 拿到当前 UTC 日期，下一步再做乘法。",
+      tool_calls: [{ id: timeCallId, name: "current_time", arguments: {} }],
+    },
+    {
+      id: nanoid(8),
+      role: "tool",
+      content: isoNow,
+      tool_call_id: timeCallId,
+      name: "current_time",
+    },
+    {
+      id: nanoid(8),
+      role: "assistant",
+      content: "",
+      reasoning:
+        `current_time 返回 ${isoNow}，所以今天是 ${year} 年 ${month} 月 ${day} 日，` +
+        `年月日相乘就是 ${expression}。乘法我能心算，但为了演示工具调用、也避免手滑算错，交给 calculator 更稳妥。`,
+      tool_calls: [{ id: calcCallId, name: "calculator", arguments: { expression } }],
+    },
+    {
+      id: nanoid(8),
+      role: "tool",
+      content: product,
+      tool_call_id: calcCallId,
+      name: "calculator",
+    },
+    {
+      id: nanoid(8),
+      role: "assistant",
+      content: `今天是 ${dateLabel}，年 × 月 × 日 = ${expression} = ${product}。`,
+      reasoning:
+        `calculator 返回 ${product}，与预期一致。把它整理成一句自然语言回答，` +
+        `并带上今天的日期作为依据即可。`,
+    },
+  ];
 }

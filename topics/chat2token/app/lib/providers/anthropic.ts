@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { chatFetch } from "./proxyFetch";
 
 interface AccBlock {
-  type: "text" | "tool_use";
+  type: "text" | "tool_use" | "thinking";
   text?: string;
   id?: string;
   name?: string;
@@ -91,6 +91,7 @@ export const anthropicProvider: ChatProvider = {
     const decoder = new TextDecoder();
     let buffer = "";
     let content = "";
+    let reasoning = "";
     const blocks: Record<number, AccBlock> = {};
     let finish: DeltaEvent["finishReason"];
 
@@ -119,6 +120,8 @@ export const anthropicProvider: ChatProvider = {
             blocks[idx] = { type: "text", text: "" };
           } else if (b.type === "tool_use") {
             blocks[idx] = { type: "tool_use", id: b.id, name: b.name, inputJson: "" };
+          } else if (b.type === "thinking") {
+            blocks[idx] = { type: "thinking", text: "" };
           }
         } else if (type === "content_block_delta") {
           const idx = evt.index;
@@ -129,6 +132,10 @@ export const anthropicProvider: ChatProvider = {
             block.text = (block.text ?? "") + d.text;
             content += d.text;
             onDelta({ contentDelta: d.text });
+          } else if (d.type === "thinking_delta" && block.type === "thinking") {
+            block.text = (block.text ?? "") + d.thinking;
+            reasoning += d.thinking;
+            onDelta({ reasoningDelta: d.thinking });
           } else if (d.type === "input_json_delta" && block.type === "tool_use") {
             block.inputJson = (block.inputJson ?? "") + d.partial_json;
             onDelta({
@@ -162,6 +169,6 @@ export const anthropicProvider: ChatProvider = {
 
     if (toolCalls.length > 0 && !finish) finish = "tool_calls";
     if (!finish) finish = "stop";
-    return { content, toolCalls, finishReason: finish };
+    return { content, reasoning: reasoning || undefined, toolCalls, finishReason: finish };
   },
 };

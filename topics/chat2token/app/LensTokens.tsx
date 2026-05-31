@@ -319,7 +319,10 @@ function TokenChip({
   dim: boolean;
   onHover: () => void;
 }) {
-  const display = t.text
+  // Fragments of a multi-token character (e.g. one byte of an emoji) carry a
+  // `\xHH` byte view so the split is shown faithfully; everything else renders
+  // its readable source text.
+  const display = (t.byteText ?? t.text)
     .replace(/ /g, "·")
     .replace(/\n/g, "↵")
     .replace(/\t/g, "→")
@@ -362,7 +365,7 @@ function TokenDetail({ t }: { t: TokenInfo }) {
       </span>
       {t.isSpecial && <span className="badge" style={BADGE_SM}>special</span>}
       <span className="text-[10px] text-(--color-muted)">
-        {new TextEncoder().encode(t.text).length} 字节 · {t.text.length} 字符
+        {t.byteLen ?? new TextEncoder().encode(t.text).length} 字节 · {t.charLen} 字符
       </span>
     </div>
   );

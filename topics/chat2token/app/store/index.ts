@@ -303,7 +303,7 @@ export const useConversation = create<ConversationState>()(
             ? Math.min(1, Math.max(0, opts.fraction))
             : null;
         // Message-bound tokens hover-light their *specific* message; tokens
-        // without a message (control / generation / tools_schema) fall back to
+        // without a message (tools_schema / generation prompt) fall back to
         // segment-wide hover so legends and the schema area still respond.
         if (t.messageId) {
           set({

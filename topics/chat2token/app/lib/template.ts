@@ -42,6 +42,13 @@ export function renderChatTemplate(input: RenderInput): string {
     return {
       role: m.role,
       content: hasToolCalls && !hasRealContent ? emptyContent : (m.content ?? ""),
+      // Expose the reasoning trace under BOTH field names real templates use:
+      // Qwen reads `reasoning_content`, GPT-OSS (harmony) reads `thinking`.
+      // DeepSeek's template references neither, so it transparently ignores it
+      // — exactly the upstream behavior (templates that don't model thinking
+      // just drop it; ones that do decide themselves whether to keep it, e.g.
+      // only on the latest turn).
+      ...(m.reasoning ? { reasoning_content: m.reasoning, thinking: m.reasoning } : {}),
       ...(m.tool_calls
         ? {
             tool_calls: m.tool_calls.map((tc) => ({

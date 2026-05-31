@@ -57,6 +57,16 @@ export interface TemplateBundle {
    */
   openingPattern?: string;
   /**
+   * Literal trailing string that marks the generation prompt, for templates
+   * where it can't be discovered by diffing a `add_generation_prompt=false`
+   * render. DeepSeek glues `<｜Assistant｜>` onto every user turn *and* skips
+   * its own trailing-prompt block when the last message is a user, so the two
+   * renders are byte-identical (diff = 0) and the assistant trigger would
+   * otherwise be swallowed by the final user span. Declaring it here lets
+   * `computeSpans` split the trailing marker off as its own `generation` span.
+   */
+  generationPrompt?: string;
+  /**
    * Given a message and its index, return a regex source that uniquely
    * identifies the start of THIS message's rendered block inside the
    * already-rendered template text. Returning `null` means "no opening
@@ -116,6 +126,7 @@ export const TEMPLATE_BUNDLES: Record<string, TemplateBundle> = {
     defaultTokenizerKey: "deepseek_v3",
     emptyContentValue: null,
     encodeToolArgs: (args) => JSON.stringify(args),
+    generationPrompt: "<｜Assistant｜>",
     specialTokens: [
       "<｜begin▁of▁sentence｜>",
       "<｜end▁of▁sentence｜>",
@@ -222,6 +233,17 @@ export const TEMPLATE_BUNDLES: Record<string, TemplateBundle> = {
             );
           }
           return "<\\|start\\|>assistant to=functions\\." + escapeRegex(name);
+        }
+        // A reasoning trace renders as a leading
+        // `<|start|>assistant<|channel|>analysis<|message|>…<|end|>` block
+        // before the final block (GPT-OSS only keeps it on the latest turn).
+        // Match whichever comes first so the span starts at the analysis block
+        // when it's present.
+        if (msg.reasoning) {
+          return (
+            "<\\|start\\|>assistant<\\|channel\\|>analysis<\\|message\\|>" +
+            "|<\\|start\\|>assistant<\\|channel\\|>final<\\|message\\|>"
+          );
         }
         return "<\\|start\\|>assistant<\\|channel\\|>final<\\|message\\|>";
       }

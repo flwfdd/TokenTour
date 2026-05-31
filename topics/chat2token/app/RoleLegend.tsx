@@ -1,18 +1,13 @@
 import type { TokenInfo, TokenSegment } from "./lib/types";
 import { SEG_LABEL, SEG_ROLE_VAR, roleSurfaceStyle } from "./visual";
 
-/**
- * Display order for the role chips. `control` is intentionally absent —
- * `computeSpans` is exhaustive enough that no token lands outside every
- * span in practice, and zero-count chips are filtered anyway.
- */
+/** Display order for the role chips. Zero-count chips are filtered out. */
 export const SEG_ORDER: TokenSegment[] = [
   "system",
   "tools_schema",
   "user",
   "assistant",
   "tool",
-  "generation",
 ];
 
 export function countBySegment(tokens: TokenInfo[]): Record<TokenSegment, number> {
@@ -22,8 +17,6 @@ export function countBySegment(tokens: TokenInfo[]): Record<TokenSegment, number
     user: 0,
     assistant: 0,
     tool: 0,
-    control: 0,
-    generation: 0,
   };
   for (const t of tokens) c[t.segment] = (c[t.segment] ?? 0) + 1;
   return c;

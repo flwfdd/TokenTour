@@ -31,53 +31,54 @@ export default function Intro({ open, onClose }: Props) {
         className="glass max-w-2xl rounded-xl p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h1 className="text-lg font-semibold">TokenTour · 把 Agent 拆开给你看</h1>
+        <h1 className="text-lg font-semibold">TokenTour</h1>
         <p className="mt-1 text-sm text-(--color-muted)">
-          交互式可视化「你跟 Agent 说的一句话」→ chat template → tokens →
-          KV cache 这条链路。
+          一句话发给模型之前，其实还要经过好几步：先被套进 chat template，
+          再切成 token，最后占用 KV cache。这里把这几步同时摆出来，方便你看清。
         </p>
-        <ol className="mt-3 list-inside list-decimal space-y-1 text-sm">
+
+        <div className="mt-4 text-xs font-semibold text-(--color-muted)">四个面板</div>
+        <ul className="mt-1.5 space-y-1 text-sm">
           <li>
-            <b>对话面板</b>（左侧）· system prompt、tools、可编辑的消息列表
+            <b>对话</b>（左）— 改 system prompt、开关工具、增删改消息。
           </li>
           <li>
-            <b>Chat Template</b>（中上）· Jinja 渲染后的完整文本，可并排两家家族对比
+            <b>Chat Template</b>（中上）— 这些消息按所选模型的模板拼成的最终文本；可并排对比不同模型。
           </li>
           <li>
-            <b>Tokens</b>（中右）· 真实 BPE 分词结果，可换分词器
+            <b>Tokens</b>（中右）— 上面那段文本被真实分词器切出来的 token；可以换分词器。
           </li>
           <li>
-            <b>Context × KV</b>（下方）· 角色分布、KV 状态条、内存估算
+            <b>Context × KV</b>（下）— 各角色各占多少、哪些 token 命中了缓存、以及大致的显存开销。
           </li>
-        </ol>
+        </ul>
+
         <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
           <div className="card p-3">
-            <div className="text-xs font-semibold">三种用法</div>
-            <ul className="mt-1 list-inside list-disc text-[12px] text-(--color-muted)">
+            <div className="text-xs font-semibold">怎么开始</div>
+            <ul className="mt-1.5 space-y-1 text-[12px] text-(--color-muted)">
               <li>
-                直接点 <span className="kbd">Demo</span> 跑预录对话（无需 key）
+                没 key 也能玩：点 <span className="kbd">Demo</span> 用一段示例对话把面板填满。
               </li>
-              <li>右上角填 BYOK 后点 <span className="kbd">发送</span> 调真实 provider</li>
               <li>
-                修改任意前缀消息，看 <b>缓存命中输入</b> 实时缩短再恢复
+                想跑真实模型：右上角 <span className="kbd">设置 / BYOK</span> 填好 key，再发送。
               </li>
             </ul>
           </div>
           <div className="card p-3">
-            <div className="text-xs font-semibold">玩法建议</div>
-            <ul className="mt-1 list-inside list-disc text-[12px] text-(--color-muted)">
-              <li>右下 <b>假想架构</b> 切 Qwen3-0.6B / 32B 看 KV 内存量级差距</li>
-              <li>Chat Template 面板 <b>+ 对比</b> 看同样 messages 在 DeepSeek / GPT-OSS 下多多少 token</li>
-              <li>Hover 任意面板，其它面板自动滚动到同一位置</li>
+            <div className="text-xs font-semibold">几个值得一试的</div>
+            <ul className="mt-1.5 space-y-1 text-[12px] text-(--color-muted)">
+              <li>改一改靠前的消息，看「缓存命中」先缩短、再随新前缀恢复——这就是 KV cache 复用。</li>
+              <li>右下角换个模型规模，比同一段对话的 KV 显存差几个量级。</li>
+              <li>把鼠标停在某个 token 上，其它面板会滚到对应位置。</li>
             </ul>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between">
-          <span className="text-[11px] text-(--color-muted)">
-            完整用法见 <code>docs/GUIDE.md</code> · ESC 关闭
-          </span>
+
+        <div className="mt-4 flex items-center justify-end gap-3">
+          <span className="text-[11px] text-(--color-muted)">按 ESC 关闭</span>
           <button className="btn btn-primary" onClick={onClose}>
-            开始探索
+            知道了
           </button>
         </div>
       </div>

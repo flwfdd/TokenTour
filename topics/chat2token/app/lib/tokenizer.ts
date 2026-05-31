@@ -18,7 +18,11 @@
  * The `isSpecial` flag on a token is computed post-hoc by matching the
  * decoded text against a `<|name|>` / `<｜name｜>` pattern — purely cosmetic.
  */
-import { encode as encodeCl100k, decode as decodeCl100k } from "gpt-tokenizer/encoding/cl100k_base";
+import {
+  encode as encodeCl100k,
+  decode as decodeCl100k,
+  default as cl100kDefault,
+} from "gpt-tokenizer/encoding/cl100k_base";
 import {
   encode as encodeHarmonyRaw,
   decode as decodeHarmony,
@@ -35,6 +39,103 @@ export interface TokenizerEntry {
   vocabSize: number;
   encode: (text: string) => number[];
   decode: (ids: number[]) => string;
+  /**
+   * Raw UTF-8 bytes for a single token id, or `null` if unknown. Lets the
+   * tokenizer be walked at the byte level so multi-token characters (emoji /
+   * rare CJK split across several byte-level tokens) render each fragment
+   * faithfully instead of collapsing into one glyph + an empty placeholder. */
+  tokenBytes?: (id: number) => Uint8Array | null;
+}
+
+const TEXT_ENCODER = new TextEncoder();
+
+/** `\xF0\x9F` byte-escape rendering for token fragments that aren't valid UTF-8 on their own. */
+function bytesToEscapes(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += "\\x" + b.toString(16).toUpperCase().padStart(2, "0");
+  return s;
+}
+
+/**
+ * Per-token bytes for a `gpt-tokenizer` encoding. Its core processor maps every
+ * id to either a decoded string (text tokens) or a raw byte array (partial
+ * UTF-8 fragments); special ids live in a separate id→literal map.
+ */
+function makeGptTokenBytes(core: any): ((id: number) => Uint8Array | null) | undefined {
+  const dec = core?.bytePairRankDecoder;
+  const specials = core?.specialTokensDecoder;
+  if (!Array.isArray(dec)) return undefined;
+  return (id: number) => {
+    const v = dec[id];
+    if (v != null) {
+      if (typeof v === "string") return TEXT_ENCODER.encode(v);
+      if (v instanceof Uint8Array) return v;
+      if (Array.isArray(v)) return Uint8Array.from(v);
+    }
+    const s = specials?.get?.(id);
+    if (typeof s === "string") return TEXT_ENCODER.encode(s);
+    return null;
+  };
+}
+
+// GPT-2 `bytes_to_unicode`, inverted (unicode char → byte). Byte-level BPE
+// tokenizers (Qwen / DeepSeek / Llama …) store token strings in this alphabet;
+// inverting it recovers each token's raw bytes.
+const UNICODE_TO_BYTES: Record<string, number> = (() => {
+  const bs: number[] = [];
+  for (let i = 0x21; i <= 0x7e; i++) bs.push(i);
+  for (let i = 0xa1; i <= 0xac; i++) bs.push(i);
+  for (let i = 0xae; i <= 0xff; i++) bs.push(i);
+  const cs = bs.slice();
+  let n = 0;
+  for (let b = 0; b < 256; b++) {
+    if (!bs.includes(b)) {
+      bs.push(b);
+      cs.push(256 + n);
+      n++;
+    }
+  }
+  const map: Record<string, number> = {};
+  for (let i = 0; i < bs.length; i++) map[String.fromCodePoint(cs[i])] = bs[i];
+  return map;
+})();
+
+/**
+ * Per-token bytes for a transformers.js tokenizer. The internal pieces
+ * (`model.vocab`, the byte-level `decoder.byte_decoder`, `added_tokens_map`)
+ * live on the wrapped `_tokenizer`. Regular tokens are stored in the byte-level
+ * alphabet (mapped back to bytes via the decoder's own table); added/special
+ * tokens and SentencePiece `<0xXX>` byte-fallback tokens are handled directly.
+ */
+function makeHfTokenBytes(tok: any): (id: number) => Uint8Array | null {
+  const inner = tok?._tokenizer ?? tok;
+  const vocab = inner?.model?.vocab;
+  const addedMap = inner?.added_tokens_map;
+  // The decoder's byte_decoder maps each byte-alphabet char → byte (values may
+  // be strings — object keys — so coerce with Number). Fall back to the
+  // standard GPT-2 table if the decoder doesn't expose one.
+  const byteDecoder: Record<string, number | string> | undefined =
+    inner?.decoder?.byte_decoder;
+  const map: Record<string, number | string> = byteDecoder ?? UNICODE_TO_BYTES;
+  if (!vocab) return () => null;
+  const byteFallbackRe = /^<0x([0-9A-Fa-f]{2})>$/;
+  return (id: number) => {
+    const raw = vocab[id];
+    if (typeof raw !== "string") return null;
+    // Added/special tokens are stored as their literal string.
+    if (addedMap?.has?.(raw)) return TEXT_ENCODER.encode(raw);
+    // SentencePiece-style byte-fallback token: `<0xF0>` → one raw byte.
+    const bf = byteFallbackRe.exec(raw);
+    if (bf) return Uint8Array.from([parseInt(bf[1], 16)]);
+    // Byte-level alphabet (GPT-2 / Qwen / DeepSeek): map each char → byte.
+    const bytes: number[] = [];
+    for (const ch of raw) {
+      const b = map[ch];
+      if (b === undefined) return TEXT_ENCODER.encode(raw); // not byte-level → literal
+      bytes.push(Number(b));
+    }
+    return Uint8Array.from(bytes);
+  };
 }
 
 // `gpt-tokenizer`'s default for `disallowedSpecial` is "all" — it throws if
@@ -95,6 +196,7 @@ export const TOKENIZER_REGISTRY: Record<string, TokenizerEntry> = {
     vocabSize: 201088,
     encode: encodeHarmony,
     decode: (ids) => decodeHarmony(ids),
+    tokenBytes: makeGptTokenBytes((harmonyDefault as any)?.bytePairEncodingCoreProcessor),
   },
   cl100k: {
     key: "cl100k",
@@ -102,6 +204,7 @@ export const TOKENIZER_REGISTRY: Record<string, TokenizerEntry> = {
     vocabSize: 100277,
     encode: (t) => encodeCl100k(t, ALLOW_ALL_AS_BPE),
     decode: (ids) => decodeCl100k(ids),
+    tokenBytes: makeGptTokenBytes((cl100kDefault as any)?.bytePairEncodingCoreProcessor),
   },
 };
 
@@ -243,6 +346,7 @@ export function loadHfTokenizer(key: string): Promise<TokenizerEntry> {
         (tok as any).encode(text, { add_special_tokens: false }) as number[],
       decode: (ids: number[]) =>
         (tok as any).decode(ids, { skip_special_tokens: false }) as string,
+      tokenBytes: makeHfTokenBytes(tok),
     };
     hfCache.set(key, entry);
     return entry;
@@ -306,7 +410,7 @@ function segmentForOffset(
       return { segment: s.segment, role: s.role, messageId: s.messageId };
     }
   }
-  return { segment: "control" };
+  return { segment: "system" };
 }
 
 /**
@@ -341,7 +445,7 @@ function segmentForRange(
       best = s;
     }
   }
-  if (!best) return { segment: "control" };
+  if (!best) return { segment: "system" };
   return { segment: best.segment, role: best.role, messageId: best.messageId };
 }
 
@@ -362,43 +466,114 @@ export interface TokenizeResult {
  */
 export function tokenize(text: string, opts: TokenizeOptions): TokenizeResult {
   const { family, spans, tokenizerKey } = opts;
-  const { encode, decode } = resolveTokenizer(family, tokenizerKey ?? null);
+  const entry = resolveTokenizer(family, tokenizerKey ?? null);
+  const ids = entry.encode(text);
 
-  const ids = encode(text);
+  // Preferred: walk the source at the BYTE level. This faithfully renders
+  // multi-token characters — each fragment shows its own bytes (`\xHH`) with a
+  // correct byte count — instead of collapsing into one glyph + empty token.
+  if (entry.tokenBytes) {
+    const byteResult = tokenizeByBytes(text, ids, entry.tokenBytes, spans);
+    if (byteResult) return byteResult;
+  }
+  // Fallback: char-level anchoring (tokenizers without byte access, or when
+  // token bytes don't reconstruct the source losslessly).
+  return tokenizeByChars(text, ids, entry.decode, spans);
+}
+
+/**
+ * Byte-accurate tokenization. Concatenated token bytes are expected to equal
+ * the source bytes exactly (true for lossless byte-level BPE); if they drift we
+ * return `null` so the caller falls back to char anchoring.
+ */
+function tokenizeByBytes(
+  text: string,
+  ids: number[],
+  tokenBytes: (id: number) => Uint8Array | null,
+  spans: SegmentSpan[] | undefined,
+): TokenizeResult | null {
+  const srcBytes = TEXT_ENCODER.encode(text);
+  // byte offset → UTF-16 code-unit offset at the start of the codepoint that
+  // contains that byte. Lets us turn a token's byte range into a char range.
+  const byteToChar = new Int32Array(srcBytes.length + 1);
+  {
+    let bi = 0;
+    let ci = 0;
+    for (const ch of text) {
+      const nb = TEXT_ENCODER.encode(ch).length;
+      for (let k = 0; k < nb; k++) byteToChar[bi + k] = ci;
+      bi += nb;
+      ci += ch.length;
+    }
+    byteToChar[srcBytes.length] = text.length;
+  }
+
+  const decoder = new TextDecoder("utf-8");
+  const tokens: TokenInfo[] = [];
+  let bytePos = 0;
+  let position = 0;
+
+  for (const id of ids) {
+    const tb = tokenBytes(id);
+    if (!tb || tb.length === 0) return null;
+    const start = bytePos;
+    const end = start + tb.length;
+    if (end > srcBytes.length) return null;
+    for (let k = 0; k < tb.length; k++) {
+      if (srcBytes[start + k] !== tb[k]) return null; // not lossless → bail
+    }
+    const charStart = byteToChar[start];
+    const charEnd = byteToChar[end];
+    // `text` is the readable SOURCE substring this token covers (so the
+    // chat-template pane reconstructs correctly — a multi-token char's glyph
+    // lands on the fragment that closes it, the others get ""). When the
+    // token's OWN bytes aren't valid UTF-8 (a fragment), also record a
+    // `\xHH` byte view for the Tokens pane so the split is visible.
+    const sourceText = text.slice(charStart, charEnd);
+    const own = decoder.decode(tb);
+    const isFragment = own.includes("\uFFFD");
+    const seg = spans
+      ? segmentForRange(charStart, charEnd, spans)
+      : { segment: "system" as TokenSegment };
+    tokens.push({
+      id,
+      text: sourceText,
+      position: position++,
+      segment: seg.segment,
+      isSpecial: looksLikeSpecial(sourceText),
+      role: seg.role,
+      messageId: seg.messageId,
+      charStart,
+      charLen: charEnd - charStart,
+      byteLen: tb.length,
+      byteText: isFragment ? bytesToEscapes(tb) : undefined,
+    });
+    bytePos = end;
+  }
+  if (bytePos !== srcBytes.length) return null;
+  return { tokens, totalCount: tokens.length };
+}
+
+/**
+ * Fallback path: locate each decoded token in the source by `indexOf`. Handles
+ * tokenizers that don't expose per-token bytes. Multi-token characters are
+ * buffered until the group decodes cleanly, then attributed to the final
+ * fragment (mirroring tiktoken's empty-piece + completing-piece behaviour).
+ */
+function tokenizeByChars(
+  text: string,
+  ids: number[],
+  decode: (ids: number[]) => string,
+  spans: SegmentSpan[] | undefined,
+): TokenizeResult {
   const tokens: TokenInfo[] = [];
   let cursor = 0;
   let position = 0;
 
-  for (const id of ids) {
-    let t = decode([id]);
-    // Locate `t` starting at `cursor`. Most of the time the tokenizer's
-    // decoded text agrees byte-for-byte with the source at this offset, but
-    // some BPE pieces are partial-byte UTF-8 fragments — gpt-tokenizer
-    // returns "" for those while HF tokenizers return the U+FFFD replacement
-    // character (or a fragment containing it). Either way we cannot locate
-    // them in the source; treat them as zero-width and DO NOT advance
-    // `cursor`. The next id whose decode produces a real substring will
-    // re-anchor us via `indexOf`. (Advancing on a missed match was the
-    // root cause of cascading drift across multi-byte CJK runs.)
-    let charStart = cursor;
-    let charLen = 0;
-    if (t.length > 0) {
-      const found = text.indexOf(t, cursor);
-      if (found >= 0 && found - cursor <= 8) {
-        // Tolerate small drift (some HF tokenizers strip leading whitespace
-        // in `decode([id])`).
-        charStart = found;
-        charLen = t.length;
-        cursor = found + t.length;
-      } else {
-        // Couldn't anchor — surface as an empty/partial-byte token so the UI
-        // renders an invisible-but-hoverable placeholder at the right offset.
-        t = "";
-      }
-    }
+  const pushToken = (id: number, t: string, charStart: number, charLen: number) => {
     const seg = spans
       ? segmentForRange(charStart, charStart + charLen, spans)
-      : { segment: "control" as TokenSegment };
+      : { segment: "system" as TokenSegment };
     tokens.push({
       id,
       text: t,
@@ -409,8 +584,56 @@ export function tokenize(text: string, opts: TokenizeOptions): TokenizeResult {
       messageId: seg.messageId,
       charStart,
       charLen,
+      byteLen: TEXT_ENCODER.encode(t).length,
     });
+  };
+
+  const anchor = (s: string): number => {
+    if (s.length === 0) return cursor;
+    if (s.includes("\uFFFD")) return -1;
+    const found = text.indexOf(s, cursor);
+    return found >= 0 && found - cursor <= 8 ? found : -1;
+  };
+
+  let pending: number[] = [];
+
+  for (const id of ids) {
+    if (pending.length > 0) {
+      pending.push(id);
+      const groupText = decode(pending);
+      if (groupText.includes("\uFFFD")) continue;
+      const found = anchor(groupText);
+      if (found >= 0 && groupText.length > 0) {
+        const last = pending.length - 1;
+        pending.forEach((pid, i) => {
+          if (i < last) pushToken(pid, "", found, 0);
+          else pushToken(pid, groupText, found, groupText.length);
+        });
+        cursor = found + groupText.length;
+      } else {
+        for (const pid of pending) pushToken(pid, "", cursor, 0);
+      }
+      pending = [];
+      continue;
+    }
+
+    const t = decode([id]);
+    if (t.length === 0) {
+      pushToken(id, "", cursor, 0);
+      continue;
+    }
+    const found = anchor(t);
+    if (found >= 0) {
+      pushToken(id, t, found, t.length);
+      cursor = found + t.length;
+    } else if (t.includes("\uFFFD")) {
+      pending = [id];
+    } else {
+      pushToken(id, "", cursor, 0);
+    }
   }
+
+  for (const pid of pending) pushToken(pid, "", cursor, 0);
 
   return { tokens, totalCount: tokens.length };
 }

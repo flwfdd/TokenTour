@@ -19,6 +19,8 @@ export interface ChatRequest {
 
 export interface DeltaEvent {
   contentDelta?: string;
+  /** Streamed reasoning/thinking chunk (reasoning models only). */
+  reasoningDelta?: string;
   toolCallDelta?: Partial<ToolCall> & { index?: number; argumentsDelta?: string };
   finishReason?: "stop" | "tool_calls" | "length" | "error";
   errorMessage?: string;
@@ -30,6 +32,8 @@ export interface ChatProvider {
   name: string;
   stream(req: ChatRequest, onDelta: (d: DeltaEvent) => void): Promise<{
     content: string;
+    /** Full reasoning trace, if the model emitted one. */
+    reasoning?: string;
     toolCalls: ToolCall[];
     finishReason: DeltaEvent["finishReason"];
   }>;

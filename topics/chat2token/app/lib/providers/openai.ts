@@ -49,6 +49,7 @@ export const openAiProvider: ChatProvider = {
     const decoder = new TextDecoder();
     let buffer = "";
     let content = "";
+    let reasoning = "";
     const toolsAcc: Record<number, AccTool> = {};
     let finish: DeltaEvent["finishReason"];
 
@@ -76,6 +77,18 @@ export const openAiProvider: ChatProvider = {
         const choice = json.choices?.[0];
         if (!choice) continue;
         const delta = choice.delta ?? {};
+        // Reasoning models stream their thinking trace on a separate field:
+        // DeepSeek uses `reasoning_content`, OpenRouter/others use `reasoning`.
+        const reasoningChunk =
+          typeof delta.reasoning_content === "string"
+            ? delta.reasoning_content
+            : typeof delta.reasoning === "string"
+              ? delta.reasoning
+              : "";
+        if (reasoningChunk.length > 0) {
+          reasoning += reasoningChunk;
+          onDelta({ reasoningDelta: reasoningChunk });
+        }
         if (typeof delta.content === "string" && delta.content.length > 0) {
           content += delta.content;
           onDelta({ contentDelta: delta.content });
@@ -116,6 +129,6 @@ export const openAiProvider: ChatProvider = {
       return { id: t.id || nanoid(8), name: t.name, arguments: parsed };
     });
 
-    return { content, toolCalls, finishReason: finish };
+    return { content, reasoning: reasoning || undefined, toolCalls, finishReason: finish };
   },
 };

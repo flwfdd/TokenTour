@@ -116,7 +116,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
 
     let decodeAppended = 0;
     let assistantContent = "";
-    const { content, toolCalls, finishReason } = await provider.stream(
+    const { content, reasoning, toolCalls, finishReason } = await provider.stream(
       {
         baseUrl,
         routeThroughProxy,
@@ -156,6 +156,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
       id: nanoid(8),
       role: "assistant",
       content: content || assistantContent,
+      ...(reasoning ? { reasoning } : {}),
       ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
     };
     workingMessages = [...workingMessages, assistantMsg];

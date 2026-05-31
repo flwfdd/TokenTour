@@ -15,6 +15,10 @@ export function toOpenAiMessage(m: Message): Record<string, unknown> {
   return {
     role: m.role,
     content: m.content,
+    // Reasoning models surface the thinking trace as `reasoning_content`
+    // (DeepSeek / OpenAI-compatible). Shown here so "查看 JSON" reflects it;
+    // upstreams that don't model it simply ignore the extra field.
+    ...(m.reasoning ? { reasoning_content: m.reasoning } : {}),
     ...(m.tool_calls
       ? {
           tool_calls: m.tool_calls.map((tc) => ({

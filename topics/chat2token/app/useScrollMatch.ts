@@ -67,8 +67,8 @@ export function useScrollMatchIntoView({
             : null
           : pick(els, hoverMessageFraction);
     } else if (hoverRole) {
-      // Segment-only hover (tools_schema / generation / control / system
-      // prefix — none carry a messageId). Align by the SAME within-segment
+      // Segment-only hover (tools_schema / generation-prompt — none carry a
+      // messageId). Align by the SAME within-segment
       // fraction so hovering deep inside a big tools-schema block no longer
       // snaps the other pane back to that block's start (the "鬼畜" jump).
       target = pick(

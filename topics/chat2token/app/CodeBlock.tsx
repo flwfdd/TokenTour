@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, WrapText } from "lucide-react";
 
 /**
  * Runtime twin of `src/components/CodeBlock.astro`, for React islands that need
@@ -35,6 +35,7 @@ export default function CodeBlock({
 }) {
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [wrapped, setWrapped] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Highlight lazily — `shiki` is code-split into its own chunk and only
@@ -80,7 +81,11 @@ export default function CodeBlock({
   };
 
   return (
-    <figure className={"code-block flex min-h-0 flex-col " + className}>
+    <figure
+      className={
+        "code-block flex min-h-0 flex-col " + (wrapped ? "is-wrapped " : "") + className
+      }
+    >
       <figcaption className="code-block__bar">
         <span className="code-block__dots" aria-hidden="true">
           <i></i>
@@ -88,15 +93,30 @@ export default function CodeBlock({
           <i></i>
         </span>
         <span className="code-block__title">{title ?? lang}</span>
-        <button
-          type="button"
-          className={"code-block__copy" + (copied ? " is-copied" : "")}
-          onClick={copy}
-          aria-label="复制代码"
-        >
-          <Copy className="code-block__icon code-block__icon--copy" size={15} strokeWidth={2} />
-          <Check className="code-block__icon code-block__icon--check" size={15} strokeWidth={2.4} />
-        </button>
+        <span className="code-block__actions">
+          <button
+            type="button"
+            className={"code-block__btn code-block__wrap" + (wrapped ? " is-on" : "")}
+            onClick={() => setWrapped((w) => !w)}
+            aria-label="切换自动换行"
+            aria-pressed={wrapped}
+          >
+            <WrapText className="code-block__icon" size={15} strokeWidth={2} />
+          </button>
+          <button
+            type="button"
+            className={"code-block__btn code-block__copy" + (copied ? " is-copied" : "")}
+            onClick={copy}
+            aria-label="复制代码"
+          >
+            <Copy className="code-block__icon code-block__icon--copy" size={15} strokeWidth={2} />
+            <Check
+              className="code-block__icon code-block__icon--check"
+              size={15}
+              strokeWidth={2.4}
+            />
+          </button>
+        </span>
       </figcaption>
       {html ? (
         // display:contents so the Shiki <pre> becomes a direct flex child of

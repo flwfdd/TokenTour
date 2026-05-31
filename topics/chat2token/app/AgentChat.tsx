@@ -1,21 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { nanoid } from "nanoid";
-import { Pencil, Trash2, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Pencil, Trash2, Check, ChevronDown, ChevronUp, Brain } from "lucide-react";
 
 import { useConversation, getActiveTools, buildOutgoingMessages } from "./store";
 import { getModel } from "./lib/modelRegistry";
 import { PROVIDERS } from "./lib/providers";
 import { runAgentLoop } from "./lib/agentLoop";
 import { BUILTIN_TOOLS } from "./lib/tools";
-import { runDemo } from "./lib/demo";
+import { buildDemoMessages, DEMO_SYSTEM_PROMPT } from "./lib/demo";
 import { stripSystemSentinel } from "./lib/messageUtils";
 import { useScrollMatchIntoView } from "./useScrollMatch";
 import { SEG_ROLE_VAR, roleSurfaceStyle } from "./visual";
-import type { Message, TokenSegment } from "./lib/types";
+import type { Message, Role, TokenSegment } from "./lib/types";
 
 export default function AgentChat() {
   const state = useConversation();
   const [input, setInput] = useState("");
+  // Tracks a just-created message so its card opens straight into the editor.
+  const [newMsgId, setNewMsgId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -49,26 +51,32 @@ export default function AgentChat() {
     await runLoop([...state.messages, userMsg]);
   };
 
+  // Append a blank message of a given role and drop it straight into edit mode.
+  // Clearing the selected step makes the new (live) message show in every lens.
+  const addMessage = (role: Role) => {
+    if (state.isRunning) return;
+    const msg: Message = { id: nanoid(8), role, content: "" };
+    if (role === "tool") {
+      msg.tool_call_id = "";
+      msg.name = "";
+    }
+    state.pushMessage(msg);
+    state.selectStep(null);
+    setNewMsgId(msg.id);
+    requestAnimationFrame(() => {
+      const el = listRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  };
+
   const handleDemo = async () => {
     if (state.isRunning) return;
-    state.setRunning(true);
+    // No playback — just initialize the conversation to a representative
+    // example (incl. a reasoning trace) so every panel has something to show.
     state.clearSteps();
-    state.setMessages([]);
-    try {
-      const initial = buildOutgoingMessages({ ...state, messages: [] });
-      await runDemo({
-        arch,
-        initialMessages: initial,
-        tools,
-        tokenizerKey: state.tokenizerKey,
-        templateFamily: state.templateFamily,
-        onStep: (s) => state.appendStep(s),
-        onMessages: (m) => state.setMessages(m),
-        delayMs: 220,
-      });
-    } finally {
-      state.setRunning(false);
-    }
+    state.setSystemPrompt(DEMO_SYSTEM_PROMPT);
+    const msgs = await buildDemoMessages();
+    state.setMessages(msgs);
   };
 
   const runLoop = async (msgs: Message[]) => {
@@ -176,9 +184,29 @@ export default function AgentChat() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-3 pt-1.5 pb-1">
-        <div className="text-[11px] uppercase tracking-wider text-(--color-muted)">
-          Messages · {state.messages.length}
+      <div className="flex items-center justify-between gap-2 px-3 pt-1.5 pb-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] uppercase tracking-wider text-(--color-muted)">
+            Messages · {state.messages.length}
+          </span>
+          <span className="text-[11px] text-(--color-muted)">·</span>
+          {(["user", "assistant", "tool"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => addMessage(r)}
+              disabled={state.isRunning}
+              title={`新建 ${r} 消息`}
+              onMouseEnter={() => state.setHoverRole(r)}
+              onMouseLeave={() => state.setHoverRole(null)}
+              className="rounded-md px-1.5 py-0.5 text-[10px] disabled:opacity-40"
+              style={{
+                ...roleSurfaceStyle(r, { hovered: true, border: true }),
+                color: `var(${SEG_ROLE_VAR[r]})`,
+              }}
+            >
+              + {r}
+            </button>
+          ))}
         </div>
         <button
           onClick={() => state.setMessagesModalOpen(true)}
@@ -205,6 +233,7 @@ export default function AgentChat() {
               m={m}
               disabled={state.isRunning}
               highlighted={state.hoverMessageId === m.id}
+              autoEdit={m.id === newMsgId}
               onChange={(patch) => state.updateMessage(m.id, patch)}
               onDelete={() => state.removeMessage(m.id)}
               onHoverEnter={() => state.setHoverMessage(m.id)}
@@ -281,10 +310,84 @@ function IconButton({
   );
 }
 
+/**
+ * A textarea tinted by a role/segment hue (border + chunky drop + focus ring),
+ * mirroring the system-prompt box so every editor field's color matches the
+ * message type it belongs to.
+ */
+function RoleTextarea({
+  seg,
+  className,
+  taRef,
+  ...rest
+}: {
+  seg: TokenSegment;
+  className?: string;
+  taRef?: React.RefObject<HTMLTextAreaElement | null>;
+} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const [focused, setFocused] = useState(false);
+  const c = `var(${SEG_ROLE_VAR[seg]})`;
+  return (
+    <textarea
+      ref={taRef}
+      {...rest}
+      onFocus={(e) => {
+        setFocused(true);
+        rest.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        rest.onBlur?.(e);
+      }}
+      className={"w-full resize-y font-mono " + (className ?? "")}
+      style={{
+        borderColor: focused ? c : `color-mix(in oklch, ${c} 45%, transparent)`,
+        boxShadow: focused
+          ? `0 2px 0 0 ${c}, 0 0 0 3px color-mix(in oklch, ${c} 22%, transparent)`
+          : `0 2px 0 0 color-mix(in oklch, ${c} 35%, transparent)`,
+      }}
+    />
+  );
+}
+
+/** Single-line sibling of {@link RoleTextarea} for short tool fields. */
+function RoleInput({
+  seg,
+  className,
+  ...rest
+}: {
+  seg: TokenSegment;
+  className?: string;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  const [focused, setFocused] = useState(false);
+  const c = `var(${SEG_ROLE_VAR[seg]})`;
+  return (
+    <input
+      {...rest}
+      onFocus={(e) => {
+        setFocused(true);
+        rest.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        rest.onBlur?.(e);
+      }}
+      className={"w-full font-mono " + (className ?? "")}
+      style={{
+        borderColor: focused ? c : `color-mix(in oklch, ${c} 45%, transparent)`,
+        boxShadow: focused
+          ? `0 2px 0 0 ${c}, 0 0 0 3px color-mix(in oklch, ${c} 22%, transparent)`
+          : `0 2px 0 0 color-mix(in oklch, ${c} 35%, transparent)`,
+      }}
+    />
+  );
+}
+
 function MessageCard({
   m,
   disabled,
   highlighted,
+  autoEdit,
   onChange,
   onDelete,
   onHoverEnter,
@@ -293,27 +396,45 @@ function MessageCard({
   m: Message;
   disabled: boolean;
   highlighted: boolean;
+  autoEdit?: boolean;
   onChange: (patch: Partial<Message>) => void;
   onDelete: () => void;
   onHoverEnter: () => void;
   onHoverLeave: () => void;
 }) {
-  const seg = (m.role as TokenSegment) in SEG_ROLE_VAR ? (m.role as TokenSegment) : "control";
+  const seg = (m.role as TokenSegment) in SEG_ROLE_VAR ? (m.role as TokenSegment) : "system";
   const content = m.content ?? "";
   const isLong =
     content.length > LONG_CHARS || (content.match(/\n/g)?.length ?? 0) >= LONG_LINES;
   const [expanded, setExpanded] = useState(false);
   const collapsed = isLong && !expanded;
 
+  const isAssistant = m.role === "assistant";
+  const isTool = m.role === "tool";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(content);
+  // Assistant messages also carry a reasoning trace and tool_calls; both are
+  // editable. tool_calls are edited as raw JSON (an array of {name, arguments}).
+  const [draftReasoning, setDraftReasoning] = useState(m.reasoning ?? "");
+  const [draftToolCalls, setDraftToolCalls] = useState("");
+  // Tool messages carry the function name + the id of the call they answer.
+  const [draftName, setDraftName] = useState(m.name ?? "");
+  const [draftToolCallId, setDraftToolCallId] = useState(m.tool_call_id ?? "");
+  const [toolCallsError, setToolCallsError] = useState<string | null>(null);
+  // Reasoning ("thinking") trace is collapsed by default — it's supporting
+  // detail, not the answer.
+  const [reasoningOpen, setReasoningOpen] = useState(false);
   // Two-step delete: first click arms (icon → check), second click confirms.
   const [armedDelete, setArmedDelete] = useState(false);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    if (!editing) setDraft(m.content ?? "");
-  }, [m.content, editing]);
+    if (!editing) {
+      setDraft(m.content ?? "");
+      setDraftReasoning(m.reasoning ?? "");
+      setToolCallsError(null);
+    }
+  }, [m.content, m.reasoning, editing]);
 
   useEffect(() => {
     if (editing && taRef.current) {
@@ -323,13 +444,89 @@ function MessageCard({
     }
   }, [editing]);
 
+  const beginEdit = () => {
+    setDraft(m.content ?? "");
+    setDraftReasoning(m.reasoning ?? "");
+    setDraftToolCalls(
+      m.tool_calls && m.tool_calls.length > 0
+        ? JSON.stringify(
+            m.tool_calls.map((tc) => ({ name: tc.name, arguments: tc.arguments })),
+            null,
+            2,
+          )
+        : "",
+    );
+    setDraftName(m.name ?? "");
+    setDraftToolCallId(m.tool_call_id ?? "");
+    setToolCallsError(null);
+    setEditing(true);
+  };
+
+  // Freshly created messages open straight into the editor.
+  const didAutoEdit = useRef(false);
+  useEffect(() => {
+    if (autoEdit && !didAutoEdit.current) {
+      didAutoEdit.current = true;
+      beginEdit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoEdit]);
+
   const save = () => {
+    const patch: Partial<Message> = { content: draft };
+    if (isAssistant) {
+      patch.reasoning = draftReasoning.trim() ? draftReasoning : undefined;
+      const raw = draftToolCalls.trim();
+      if (!raw) {
+        patch.tool_calls = undefined;
+      } else {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch (e) {
+          setToolCallsError(`JSON 解析失败：${(e as Error).message}`);
+          return;
+        }
+        if (!Array.isArray(parsed)) {
+          setToolCallsError("tool_calls 必须是一个数组");
+          return;
+        }
+        try {
+          patch.tool_calls = parsed.map((tc: any, i) => {
+            if (!tc || typeof tc.name !== "string") {
+              throw new Error(`第 ${i + 1} 项缺少字符串 name`);
+            }
+            const args =
+              tc.arguments == null
+                ? {}
+                : typeof tc.arguments === "object"
+                  ? tc.arguments
+                  : (() => {
+                      throw new Error(`第 ${i + 1} 项 arguments 必须是对象`);
+                    })();
+            return { id: typeof tc.id === "string" && tc.id ? tc.id : nanoid(8), name: tc.name, arguments: args };
+          });
+        } catch (e) {
+          setToolCallsError((e as Error).message);
+          return;
+        }
+      }
+    }
+    if (isTool) {
+      patch.name = draftName.trim() || undefined;
+      patch.tool_call_id = draftToolCallId.trim() || undefined;
+    }
     setEditing(false);
-    if (draft !== (m.content ?? "")) onChange({ content: draft });
+    setToolCallsError(null);
+    onChange(patch);
   };
   const cancel = () => {
     setEditing(false);
+    setToolCallsError(null);
     setDraft(m.content ?? "");
+    setDraftReasoning(m.reasoning ?? "");
+    setDraftName(m.name ?? "");
+    setDraftToolCallId(m.tool_call_id ?? "");
   };
 
   return (
@@ -358,7 +555,7 @@ function MessageCard({
         </div>
         {!disabled && !editing && (
           <div className="flex items-center gap-0.5">
-            <IconButton onClick={() => setEditing(true)} title="编辑">
+            <IconButton onClick={beginEdit} title="编辑">
               <Pencil size={13} strokeWidth={2} />
             </IconButton>
             <IconButton
@@ -380,14 +577,85 @@ function MessageCard({
       </div>
 
       {editing ? (
-        <div>
-          <textarea
-            ref={taRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={Math.min(12, Math.max(2, (draft.match(/\n/g)?.length ?? 0) + 2))}
-            className="w-full resize-y text-[13px] font-mono"
-          />
+        <div className="space-y-1.5">
+          {isAssistant && (
+            <label className="block">
+              <span className="mb-0.5 flex items-center gap-1 text-[10px] uppercase tracking-wider text-(--color-muted)">
+                <Brain size={11} strokeWidth={2} /> Thinking
+              </span>
+              <RoleTextarea
+                seg={seg}
+                value={draftReasoning}
+                onChange={(e) => setDraftReasoning(e.target.value)}
+                rows={Math.min(10, Math.max(2, (draftReasoning.match(/\n/g)?.length ?? 0) + 2))}
+                placeholder="（无思考，可留空）"
+                className="text-[12px]"
+              />
+            </label>
+          )}
+          {isTool && (
+            <div className="flex gap-1.5">
+              <label className="block flex-1">
+                <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-(--color-muted)">
+                  name
+                </span>
+                <RoleInput
+                  seg={seg}
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  placeholder="工具名"
+                  className="text-[12px]"
+                />
+              </label>
+              <label className="block flex-1">
+                <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-(--color-muted)">
+                  tool_call_id
+                </span>
+                <RoleInput
+                  seg={seg}
+                  value={draftToolCallId}
+                  onChange={(e) => setDraftToolCallId(e.target.value)}
+                  placeholder="对应的 call id"
+                  className="text-[12px]"
+                />
+              </label>
+            </div>
+          )}
+          <label className="block">
+            <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-(--color-muted)">
+              内容
+            </span>
+            <RoleTextarea
+              seg={seg}
+              taRef={taRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={Math.min(12, Math.max(2, (draft.match(/\n/g)?.length ?? 0) + 2))}
+              placeholder={isAssistant ? "（仅工具调用时可留空）" : ""}
+              className="text-[13px]"
+            />
+          </label>
+          {isAssistant && (
+            <label className="block">
+              <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-(--color-muted)">
+                tool_calls (JSON)
+              </span>
+              <RoleTextarea
+                seg={seg}
+                value={draftToolCalls}
+                onChange={(e) => {
+                  setDraftToolCalls(e.target.value);
+                  if (toolCallsError) setToolCallsError(null);
+                }}
+                rows={Math.min(14, Math.max(2, (draftToolCalls.match(/\n/g)?.length ?? 0) + 1))}
+                placeholder={'（无工具调用，可留空）\n[\n  { "name": "calculator", "arguments": { "expression": "1+1" } }\n]'}
+                className="text-[12px]"
+              />
+            </label>
+          )}
+          {toolCallsError && (
+            <div className="text-[11px] text-(--color-danger)">{toolCallsError}</div>
+          )}
           <div className="mt-1 flex items-center justify-end gap-1">
             <button className="btn" onClick={cancel}>
               取消
@@ -399,6 +667,27 @@ function MessageCard({
         </div>
       ) : (
         <>
+          {m.reasoning && (
+            <div className="mb-1.5 rounded-md bg-white/55 px-2 py-1">
+              <button
+                onClick={() => setReasoningOpen((o) => !o)}
+                className="flex w-full items-center gap-1 text-[10px] uppercase tracking-wider text-(--color-muted) hover:text-(--color-fg)"
+              >
+                <Brain size={12} strokeWidth={2} />
+                Thinking
+                {reasoningOpen ? (
+                  <ChevronUp size={12} strokeWidth={2} className="ml-auto" />
+                ) : (
+                  <ChevronDown size={12} strokeWidth={2} className="ml-auto" />
+                )}
+              </button>
+              {reasoningOpen && (
+                <div className="mt-1 whitespace-pre-wrap break-words text-[12px] italic text-(--color-ink-soft)">
+                  {m.reasoning}
+                </div>
+              )}
+            </div>
+          )}
           {content !== "" && (
             <div
               className={
@@ -409,7 +698,7 @@ function MessageCard({
               {content}
             </div>
           )}
-          {content === "" && !m.tool_calls?.length && (
+          {content === "" && !m.tool_calls?.length && !m.reasoning && (
             <div className="text-[12px] italic text-(--color-muted)">（空内容）</div>
           )}
           {isLong && (

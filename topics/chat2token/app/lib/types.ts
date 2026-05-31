@@ -10,6 +10,13 @@ export interface Message {
   id: string;
   role: Role;
   content: string;
+  /**
+   * Reasoning / "thinking" trace from reasoning models (DeepSeek-R1's
+   * `reasoning_content`, OpenRouter's `reasoning`, Anthropic `thinking`
+   * blocks, …). Display-only: it is never sent back upstream (providers
+   * strip it) and never injected into the chat template — chat templates
+   * that don't model thinking simply ignore it. */
+  reasoning?: string;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
   name?: string;
@@ -99,7 +106,19 @@ export interface TokenInfo {
   charStart: number;
   /** char length in the cleaned template text */
   charLen: number;
-  /** message id this token belongs to; undefined for tools_schema / control / generation */
+  /**
+   * Raw UTF-8 byte length of this token. For multi-token characters (an emoji
+   * split across several byte-level tokens) the source substring lands on a
+   * single fragment, so the byte count can't be derived from `text` — it's
+   * recorded here. */
+  byteLen?: number;
+  /**
+   * Byte-escape rendering (`\xF0\x9F`) for tokens whose own bytes are NOT valid
+   * UTF-8 on their own (one fragment of a multi-token character). The Tokens
+   * pane shows this so every split token is visible; the chat-template pane
+   * keeps using `text` (the readable source substring) for reconstruction. */
+  byteText?: string;
+  /** message id this token belongs to; undefined for tools_schema / generation-prompt tokens */
   messageId?: string;
 }
 
@@ -108,9 +127,7 @@ export type TokenSegment =
   | "tools_schema"
   | "user"
   | "assistant"
-  | "tool"
-  | "control"
-  | "generation";
+  | "tool";
 
 export interface ContextBreakdown {
   system: number;
@@ -118,7 +135,5 @@ export interface ContextBreakdown {
   user: number;
   assistant: number;
   tool: number;
-  control: number;
-  generation: number;
   total: number;
 }

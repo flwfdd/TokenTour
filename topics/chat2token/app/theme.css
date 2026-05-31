@@ -61,16 +61,13 @@
 
   /* Token-strip / role colors — pulled straight from the design palette
    * wherever a hue fits, so the playground lives in the same color world as
-   * the blog. Two sibling pairs keep the semantics readable:
-   *   tools_schema is a lighter sibling of system  (schema ⊂ system prompt)
-   *   generation   is a deeper sibling of assistant (it opens the assistant turn)
-   * Purple has no palette entry, so system + its schema sibling are the one
-   * deliberate exception. */
+   * the blog. tools_schema is a lighter sibling of system (schema ⊂ system
+   * prompt). Purple has no palette entry, so system + its schema sibling are
+   * the one deliberate exception. The generation prompt reuses assistant. */
   --color-role-system: oklch(0.62 0.17 300);          /* 紫 system — 提亮，背景 tint 更透亮 */
   --color-role-schema: oklch(0.72 0.16 350);          /* 粉 — system 邻近色但明显区分 */
   --color-role-user: var(--color-primary-500);        /* cyan */
   --color-role-assistant: var(--color-success-500);   /* green */
-  --color-role-generation: var(--color-success-700);  /* 深绿 — 同 assistant 一族 */
   --color-role-tool: var(--color-accent-500);          /* orange */
 
   /* KV-cache states — palette hues: cached=cyan, prefill=red (heavy upfront),
