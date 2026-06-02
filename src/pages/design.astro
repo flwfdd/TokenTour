@@ -8,6 +8,7 @@ import Accordion from "~/components/Accordion.astro";
 import Tabs from "~/components/Tabs.astro";
 import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
 import Toc from "~/components/Toc.astro";
+import Header from "~/components/Header.astro";
 import Layout from "~/layouts/Layout.astro";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -167,10 +168,7 @@ import Toc from "~/components/Toc.astro";
 ---
 
 <Layout title="设计语言参考 · TokenTour">
-    <header class="site-bar">
-      <a href="/">⟵ TokenTour</a>
-      <span class="site-tag">Design · Specimen</span>
-    </header>
+    <Header />
 
     <Toc />
 
@@ -526,9 +524,4 @@ import Toc from "~/components/Toc.astro";
         ))}
       </article>
     </main>
-
-    <footer class="site-bar" style="margin-top: 2rem;">
-      <span>chat2token · design sandbox</span>
-      <span class="site-tag">v0 · iterating</span>
-    </footer>
 </Layout>

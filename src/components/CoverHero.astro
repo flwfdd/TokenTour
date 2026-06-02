@@ -1,0 +1,485 @@
+---
+// Home hero — a faithful web port of the Bilibili cover
+// (topics/chat2token/video/remotion/src/scenes/Cover.tsx).
+//
+// Composition (left abstract chat card ↔ right token blocks, centered title)
+// is recreated with the same OKLCH palette. The fog background is animated
+// client-side with a tiny rAF loop using the exact same blob formula as the
+// Remotion <FogBackground>. Props let each route reuse the same shell with
+// different eyebrow / title copy.
+
+interface TitleLine {
+  text: string;
+  tone?: "primary" | "accent";
+  size?: "hero" | "lead" | "connector";
+}
+
+interface Props {
+  eyebrow?: string;
+  titleLines?: TitleLine[];
+  /** `stack` — tight overlap; connector sits on a lower layer between hero lines. */
+  titleLayout?: "default" | "stack";
+  label?: string;
+}
+
+const {
+  eyebrow = "TokenTour",
+  titleLines = [
+    { text: "Token", tone: "primary", size: "hero" },
+    { text: "之旅", tone: "accent", size: "lead" },
+  ],
+  titleLayout = "default",
+  label = "TokenTour 封面",
+} = Astro.props;
+
+const color = {
+  paper: "oklch(0.975 0 0)",
+  rule: "oklch(0.86 0 0)",
+  muted: "oklch(0.6 0.04 218)",
+  primary: "oklch(0.67 0.13 218)",
+  accent: "oklch(0.76 0.15 55)",
+  success: "oklch(0.7 0.14 145)",
+};
+const segmentColor: Record<string, string> = {
+  system: "oklch(0.62 0.17 300)",
+  user: color.primary,
+  assistant: color.success,
+  tool: color.accent,
+};
+const tint = (c: string, pct: number) => `color-mix(in oklch, ${c} ${pct}%, transparent)`;
+
+// Right card: pure-colour token blocks, segmented & sized like word pieces.
+const base: [string, number[]][] = [
+  ["system", [60, 38, 38, 38, 54, 44, 40]],
+  ["user", [62, 40, 32, 50, 46]],
+  ["assistant", [58, 38, 38, 38, 36, 30, 52, 46, 40, 56, 44]],
+  ["tool", [48, 66, 36, 52, 40]],
+  ["assistant", [58, 44, 38, 38, 50, 34, 54, 42]],
+  ["user", [50, 38, 62, 44]],
+  ["assistant", [40, 54, 38, 38, 48, 58, 34]],
+];
+const runs = base.concat(base.slice(0, 5));
+const TOK_SEQ = runs.flatMap(([seg, ws]) => ws.map((w) => ({ seg, w })));
+
+const WRENCH =
+  "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
+const SPARK =
+  "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M6.3 6.3l2.1 2.1 M15.6 15.6l2.1 2.1 M17.7 6.3l-2.1 2.1 M8.4 15.6l-2.1 2.1";
+---
+
+<section class="cover" aria-label={label}>
+  <div class="cover__fog" data-cover-fog></div>
+
+  <div class="cover__stage">
+    {/* 左：抽象对话卡 */}
+    <div class="cover__card-pos cover__card-pos--left">
+      <div class="ch-card">
+        {/* system */}
+        <div class="ch-role" style={`min-height:68px;background:${tint(segmentColor.system, 15)}`}>
+          <span class="ch-rail" style={`background:${segmentColor.system}`}></span>
+          <div class="ch-head">
+            <span class="ch-dot" style={`background:${segmentColor.system}`}></span>
+            <span class="ch-bar" style={`width:74px;height:11px;background:${tint(segmentColor.system, 50)}`}></span>
+          </div>
+          <span class="ch-bar" style={`width:78%;background:${color.rule}`}></span>
+        </div>
+        {/* user */}
+        <div class="ch-role" style={`min-height:68px;background:${tint(segmentColor.user, 15)}`}>
+          <span class="ch-rail" style={`background:${segmentColor.user}`}></span>
+          <div class="ch-head">
+            <span class="ch-dot" style={`background:${segmentColor.user}`}></span>
+            <span class="ch-bar" style={`width:74px;height:11px;background:${tint(segmentColor.user, 50)}`}></span>
+          </div>
+          <span class="ch-bar" style={`width:60%;background:${color.rule}`}></span>
+        </div>
+        {/* assistant · 思考 + 工具调用 */}
+        <div class="ch-role" style={`min-height:132px;background:${tint(segmentColor.assistant, 15)}`}>
+          <span class="ch-rail" style={`background:${segmentColor.assistant}`}></span>
+          <div class="ch-head">
+            <span class="ch-dot" style={`background:${segmentColor.assistant}`}></span>
+            <span class="ch-bar" style={`width:74px;height:11px;background:${tint(segmentColor.assistant, 50)}`}></span>
+          </div>
+          <div class="ch-head">
+            <svg class="ch-icon" viewBox="0 0 24 24" fill="none" stroke={color.muted} stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d={SPARK} /></svg>
+            <span class="ch-bar" style={`width:64%;height:11px;background:${tint(color.muted, 40)}`}></span>
+          </div>
+          <div class="ch-tool" style={`background:${tint(color.accent, 16)};border:1.5px solid ${tint(color.accent, 32)}`}>
+            <svg class="ch-icon" viewBox="0 0 24 24" fill="none" stroke={color.accent} stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d={WRENCH} /></svg>
+            <span class="ch-bar" style={`width:120px;height:12px;background:${tint(color.accent, 55)}`}></span>
+          </div>
+        </div>
+        {/* tool result */}
+        <div class="ch-role" style={`min-height:72px;background:${tint(segmentColor.tool, 15)}`}>
+          <span class="ch-rail" style={`background:${segmentColor.tool}`}></span>
+          <div class="ch-head">
+            <span class="ch-dot" style={`background:${segmentColor.tool}`}></span>
+            <span class="ch-bar" style={`width:74px;height:11px;background:${tint(segmentColor.tool, 50)}`}></span>
+          </div>
+          <span class="ch-bar" style={`width:46%;height:11px;background:${tint(color.accent, 42)}`}></span>
+        </div>
+        {/* assistant 终答 */}
+        <div class="ch-role" style={`min-height:86px;background:${tint(segmentColor.assistant, 15)}`}>
+          <span class="ch-rail" style={`background:${segmentColor.assistant}`}></span>
+          <div class="ch-head">
+            <span class="ch-dot" style={`background:${segmentColor.assistant}`}></span>
+            <span class="ch-bar" style={`width:74px;height:11px;background:${tint(segmentColor.assistant, 50)}`}></span>
+          </div>
+          <span class="ch-bar" style={`width:92%;background:${color.rule}`}></span>
+          <span class="ch-bar" style={`width:64%;background:${color.rule}`}></span>
+        </div>
+      </div>
+    </div>
+
+    {/* 右：纯色块 token 卡 */}
+    <div class="cover__card-pos cover__card-pos--right">
+      <div class="tk-card">
+        {TOK_SEQ.map((t) => (
+          <span
+            class="tk-block"
+            style={`width:${t.w}px;background:${tint(segmentColor[t.seg], 24)};border:1.5px solid ${tint(segmentColor[t.seg], 42)}`}
+          ></span>
+        ))}
+      </div>
+    </div>
+
+    {/* 顶部小标 */}
+    <div class="cover__eyebrow">
+      <div class="cover__brand">{eyebrow}</div>
+      <div class="cover__brand-rule"></div>
+    </div>
+
+    {/* 中：主标题（柔光底压住背景） */}
+    <div class="cover__center">
+      <div class="cover__glow"></div>
+      <div class:list={["cover__title", titleLayout === "stack" && "cover__title--stack"]}>
+        {
+          titleLines.map((line) => (
+            <div
+              class:list={[
+                "cover__title-line",
+                `cover__title-line--${line.size ?? "hero"}`,
+                `cover__title-line--${line.tone ?? "primary"}`,
+              ]}
+            >
+              {line.text}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1320 / 825;
+    overflow: hidden;
+    border-radius: 1.25rem;
+    background: var(--color-paper, oklch(0.975 0 0));
+  }
+
+  .cover__fog {
+    position: absolute;
+    inset: 0;
+    filter: blur(70px);
+    transform: scale(1.25);
+    will-change: background;
+  }
+
+  /* Fixed design canvas (matches Cover.tsx 1320×825), scaled to fit width.
+   * The scale ratio is unitless, so it's computed in JS (a ResizeObserver
+   * sets --cover-scale) — `calc()` can't divide a length to get a number. */
+  .cover__stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1320px;
+    height: 825px;
+    transform-origin: top left;
+    transform: scale(var(--cover-scale, 1));
+  }
+
+  .cover__card-pos {
+    position: absolute;
+    top: 50%;
+    z-index: 1;
+  }
+  .cover__card-pos--left {
+    left: 34px;
+    transform: translateY(-50%) rotate(-6deg);
+  }
+  .cover__card-pos--right {
+    right: 34px;
+    transform: translateY(-50%) rotate(6deg);
+  }
+
+  /* ── Chat card ── */
+  .ch-card {
+    width: 452px;
+    height: 552px;
+    box-sizing: border-box;
+    background: oklch(0.99 0 0);
+    border-radius: 26px;
+    padding: 26px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 15px;
+  }
+  .ch-role {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 11px;
+    padding: 0 22px;
+    border-radius: 18px;
+  }
+  .ch-rail {
+    position: absolute;
+    left: 0;
+    top: 12px;
+    bottom: 12px;
+    width: 5px;
+    border-radius: 999px;
+    opacity: 0.5;
+  }
+  .ch-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .ch-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+  }
+  .ch-bar {
+    display: block;
+    height: 13px;
+    border-radius: 999px;
+  }
+  .ch-icon {
+    width: 19px;
+    height: 19px;
+    flex: none;
+  }
+  .ch-tool {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-radius: 12px;
+  }
+
+  /* ── Tokens card ── */
+  .tk-card {
+    width: 452px;
+    height: 552px;
+    box-sizing: border-box;
+    background: oklch(0.99 0 0);
+    border-radius: 26px;
+    padding: 26px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .tk-block {
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  /* ── Top eyebrow ── */
+  .cover__eyebrow {
+    position: absolute;
+    top: 64px;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    z-index: 3;
+  }
+  .cover__brand {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-style: italic;
+    font-weight: 800;
+    font-size: 64px;
+    letter-spacing: 0.02em;
+    color: oklch(0.67 0.13 218);
+  }
+  .cover__brand-rule {
+    width: 138px;
+    height: 7px;
+    border-radius: 4px;
+    background: oklch(0.76 0.15 55);
+  }
+
+  /* ── Center title ── */
+  .cover__center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2;
+  }
+  .cover__glow {
+    position: absolute;
+    width: 540px;
+    height: 460px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, oklch(0.99 0 0 / 0.82), transparent);
+    filter: blur(8px);
+  }
+  .cover__title {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    font-family: "Noto Serif SC", Georgia, serif;
+    font-weight: 700;
+  }
+  .cover__title-line--hero.cover__title-line--primary {
+    font-size: 132px;
+    line-height: 1;
+    color: oklch(0.67 0.13 218);
+  }
+  .cover__title-line--lead.cover__title-line--accent {
+    font-size: 144px;
+    line-height: 1.02;
+    letter-spacing: 0.28em;
+    padding-left: 0.28em;
+    color: oklch(0.76 0.15 55);
+  }
+  .cover__title-line--connector.cover__title-line--accent {
+    font-size: 72px;
+    line-height: 1;
+    font-style: italic;
+    color: oklch(0.76 0.15 55);
+  }
+
+  /* Chat / to / Token — overlap with breathing room; "to" large & behind. */
+  .cover__title--stack {
+    gap: 0;
+  }
+  .cover__title--stack .cover__title-line--hero {
+    position: relative;
+    z-index: 2;
+    line-height: 0.98;
+  }
+  .cover__title--stack .cover__title-line--hero:first-child {
+    transform: translateX(-0.05em);
+  }
+  .cover__title--stack .cover__title-line--hero:last-child {
+    transform: translateX(0.05em);
+  }
+  .cover__title--stack .cover__title-line--connector {
+    position: relative;
+    z-index: 1;
+    font-size: 188px;
+    font-weight: 900;
+    line-height: 0.68;
+    margin: -0.18em 0 -0.14em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover__fog {
+      will-change: auto;
+    }
+  }
+</style>
+
+<script>
+  // Animated colour fog — seamless loop via integer harmonics (same math as
+  // Remotion <FogBg> in Cover.tsx). One full cycle every CYCLE_SEC seconds.
+  const CYCLE_SEC = 5;
+
+  function initCoverFog() {
+    const el = document.querySelector<HTMLElement>("[data-cover-fog]");
+    if (!el || el.dataset.fogInit) return;
+    el.dataset.fogInit = "1";
+
+    // Responsive fit: scale the fixed 1320px design canvas to the cover's
+    // actual width. scale() needs a unitless ratio, so compute it here.
+    const cover = el.closest<HTMLElement>(".cover");
+    const stage = cover?.querySelector<HTMLElement>(".cover__stage");
+    if (cover && stage) {
+      const fit = () => {
+        stage.style.setProperty("--cover-scale", String(cover.clientWidth / 1320));
+      };
+      fit();
+      new ResizeObserver(fit).observe(cover);
+    }
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // k1/k2 are integers → each blob completes whole orbits within one cycle,
+    // so th wrapping 0..2π gives a perfect seamless loop.
+    const blob = (
+      th: number,
+      hue: number,
+      l: number,
+      c: number,
+      a: number,
+      bx: number,
+      by: number,
+      rad: number,
+      k1: number,
+      k2: number,
+      ph: number,
+    ) => {
+      const cx = bx + rad * Math.cos(k1 * th + ph);
+      const cy = by + rad * Math.sin(k2 * th + ph);
+      return `radial-gradient(42% 46% at ${cx}% ${cy}%, oklch(${l} ${c} ${hue} / ${a}), transparent 72%)`;
+    };
+
+    const frame = (th: number) =>
+      [
+        blob(th, 218, 0.93, 0.12, 0.62, 26, 32, 18, 1, 1, 0),
+        blob(th, 55, 0.94, 0.11, 0.6, 76, 28, 16, 1, 2, 1.7),
+        blob(th, 300, 0.93, 0.11, 0.54, 30, 74, 17, 2, 1, 3.1),
+        blob(th, 145, 0.94, 0.1, 0.5, 74, 76, 19, 1, 1, 4.6),
+        blob(th, 195, 0.95, 0.09, 0.44, 50, 50, 15, 2, 2, 2.2),
+        blob(th, 28, 0.95, 0.08, 0.4, 50, 18, 14, 1, 1, 5.4),
+      ].join(",");
+
+    if (reduce) {
+      el.style.background = frame(0);
+      return;
+    }
+
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const elapsed = ((now - start) / 1000) % CYCLE_SEC;
+      const th = (2 * Math.PI * elapsed) / CYCLE_SEC;
+      el.style.background = frame(th);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    // Pause when the hero scrolls out of view to save battery.
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting && !raf) raf = requestAnimationFrame(tick);
+        else if (!e.isIntersecting && raf) {
+          cancelAnimationFrame(raf);
+          raf = 0;
+        }
+      }
+    });
+    io.observe(el);
+  }
+
+  initCoverFog();
+  document.addEventListener("astro:page-load", initCoverFog);
+</script>

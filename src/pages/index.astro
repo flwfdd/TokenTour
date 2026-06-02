@@ -1,14 +1,67 @@
 ---
+// Site home = topic index. Each topic gets one card linking to its hub
+// (`/<topic>`); the topic's own surfaces (playground / article / video) hang
+// off that hub. Add a new entry here when a topic is added.
 import Layout from "~/layouts/Layout.astro";
-import App from "../../topics/chat2token/app/App.tsx";
+import Header from "~/components/Header.astro";
+import CoverHero from "~/components/CoverHero.astro";
+import TopicCard from "~/components/TopicCard.astro";
 
-// The shell is a static HTML page — the entire interactive surface is
-// hydrated client-side by `<App>`. Prerendering keeps cold-start at zero
-// (just an asset hit) and only the `/api/proxy` route is left for the
-// Worker.
 export const prerender = true;
+
+const topics = [
+  {
+    slug: "chat2token",
+    title: "Chat to Token",
+    desc: "从提示词到 KV Cache：和 AI 的对话如何变成 Messages、Chat Template、Token 和 KV Cache",
+    accent: "var(--color-primary-500)",
+  },
+];
 ---
 
-<Layout>
-  <App client:load />
+<Layout title="TokenTour · 交互式 LLM 可视化">
+  <Header />
+
+  <main class="column home">
+    <CoverHero />
+
+    <p class="home__lede">
+      TokenTour 是一个包含一系列视频、文章、实验的企划。
+      <br />
+      带你以交互式可视化的方式，了解 大模型/Agent 的方方面面。
+    </p>
+
+    <div class="home__grid">
+      {
+        topics.map((t) => (
+          <TopicCard
+            href={`/${t.slug}`}
+            eyebrow={t.slug}
+            title={t.title}
+            desc={t.desc}
+            accent={t.accent}
+          />
+        ))
+      }
+    </div>
+  </main>
 </Layout>
+
+<style>
+  /* Cover sits flush under the header — drop the column's tall top padding. */
+  .home {
+    padding-top: 0.5rem;
+  }
+  .home__lede {
+    margin: 2.25rem 0 2.5rem;
+    max-width: 36rem;
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: var(--color-ink-soft);
+  }
+  .home__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 1.1rem;
+  }
+</style>

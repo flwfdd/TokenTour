@@ -1,0 +1,39 @@
+---
+// Shared accent CTA for linking out to the chat2token playground.
+import { FlaskConical, ArrowRight } from "@lucide/astro";
+
+interface Props {
+  href?: string;
+  label?: string;
+}
+const {
+  href = "/chat2token/playground",
+  label = "打开 Playground 亲手实验",
+} = Astro.props;
+---
+
+<a class="btn btn-accent pg-btn" href={href} target="_blank" rel="noopener">
+  <FlaskConical size={16} stroke-width={2.2} aria-hidden="true" />
+  {label}
+  <ArrowRight class="pg-btn__arrow" size={15} stroke-width={2.4} aria-hidden="true" />
+</a>
+
+<style>
+  /* Win over `.prose a` — the button owns its look. */
+  .pg-btn {
+    flex: none;
+    color: var(--btn-fg);
+    text-decoration: none;
+    font-size: 0.78rem;
+    padding: 0.45rem 0.9rem;
+  }
+  .pg-btn:hover {
+    text-decoration: none;
+  }
+  .pg-btn__arrow {
+    transition: transform 0.15s ease;
+  }
+  .pg-btn:hover .pg-btn__arrow {
+    transform: translateX(2px);
+  }
+</style>

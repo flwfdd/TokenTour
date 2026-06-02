@@ -1,0 +1,178 @@
+---
+// Landing card in the site's chunky "button" language: tall hard bottom edge in
+// a light tint of the accent hue (same family as the top/side border, but paler
+// — never a vivid or dark lip), lifts on hover, presses on click. On hover a
+// soft, luminous, low-saturation colour haze diffuses across the whole card
+// (large, heavily-blurred blobs that stay bright, never muddy/dark) and only
+// flows while the pointer moves. Landing-page chrome only — NOT for labs.
+interface Props {
+  href: string;
+  eyebrow?: string;
+  title: string;
+  subtitle?: string;
+  desc: string;
+  /** Accent hue (border + text). Any CSS color or var(). */
+  accent?: string;
+  cta?: string;
+}
+const { href, eyebrow, title, subtitle, desc, accent = "var(--color-primary-500)", cta } =
+  Astro.props;
+---
+
+<a class="tcard" href={href} data-spotlight style={`--accent:${accent}`}>
+  <span class="tcard__fog" aria-hidden="true"></span>
+  {eyebrow && <span class="tcard__eyebrow">{eyebrow}</span>}
+  <span class="tcard__title">{title}</span>
+  {subtitle && <span class="tcard__sub">{subtitle}</span>}
+  <span class="tcard__desc">{desc}</span>
+  {cta && (
+    <span class="tcard__go">
+      {cta} <span class="tcard__arrow">→</span>
+    </span>
+  )}
+</a>
+
+<style>
+  .tcard {
+    --accent: var(--color-primary-500);
+    --edge: var(--color-rule);
+    --press: 5px;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 1.45rem 1.6rem 1.3rem;
+    border: 1.5px solid var(--color-rule);
+    border-radius: 0.95rem;
+    background: var(--color-paper);
+    box-shadow: 0 var(--press) 0 0 var(--edge);
+    text-decoration: none;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.2s ease;
+  }
+  /* Tall 3D kept. The edge takes a PALE tint of the accent (same hue family as
+   * the border, but light and soft — not the vivid 500 and not a dark mix). */
+  .tcard:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklch, var(--accent) 60%, white);
+    --edge: color-mix(in oklch, var(--accent) 32%, white);
+    box-shadow: 0 8px 0 0 var(--edge);
+  }
+  .tcard:active {
+    transform: translateY(var(--press));
+    box-shadow: 0 0 0 0 var(--edge);
+  }
+
+  /* Mouse-driven colour haze — large, heavily-blurred, LUMINOUS low-saturation
+   * blobs that diffuse into one soft bright cloud (never dark/muddy). Each blob
+   * tracks the cursor at a different parallax rate so colour flows as you move;
+   * position-driven only → a still pointer freezes it. Text stays dark, which
+   * reads cleanly over the light haze. */
+  .tcard__fog {
+    position: absolute;
+    inset: -40%;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+    filter: blur(44px);
+    background:
+      radial-gradient(
+        60% 66% at calc(var(--mx, 50%)) calc(var(--my, 50%)),
+        oklch(0.94 0.085 350 / 0.66),
+        transparent 80%
+      ),
+      radial-gradient(
+        64% 70% at calc(100% - var(--mx, 50%) * 0.7) calc(var(--my, 50%) * 0.6 + 6%),
+        oklch(0.95 0.08 58 / 0.62),
+        transparent 80%
+      ),
+      radial-gradient(
+        66% 72% at calc(var(--mx, 50%) * 0.6 + 12%) calc(100% - var(--my, 50%) * 0.7),
+        oklch(0.93 0.095 295 / 0.64),
+        transparent 80%
+      ),
+      radial-gradient(
+        62% 68% at calc(100% - var(--mx, 50%) * 0.5) calc(100% - var(--my, 50%) * 0.55),
+        oklch(0.94 0.08 240 / 0.58),
+        transparent 80%
+      ),
+      radial-gradient(
+        70% 76% at calc(var(--mx, 50%) * 0.45 + 28%) calc(var(--my, 50%) * 0.45 + 26%),
+        oklch(0.95 0.07 175 / 0.5),
+        transparent 84%
+      );
+  }
+  .tcard:hover .tcard__fog {
+    opacity: 1;
+  }
+
+  .tcard > *:not(.tcard__fog) {
+    position: relative;
+    z-index: 1;
+  }
+
+  .tcard__eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .tcard__title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
+  }
+  .tcard__sub {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+  .tcard__desc {
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: color-mix(in oklch, var(--color-ink-soft) 55%, var(--color-ink));
+  }
+  .tcard__go {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .tcard__arrow {
+    display: inline-block;
+    transition: transform 0.18s ease;
+  }
+  .tcard:hover .tcard__arrow {
+    transform: translateX(3px);
+  }
+</style>
+
+<script>
+  // Drive --mx/--my from the pointer (rAF-throttled). Fires only on movement,
+  // so a stationary pointer leaves the haze perfectly still.
+  for (const el of document.querySelectorAll<HTMLElement>("[data-spotlight]")) {
+    let raf = 0;
+    let px = 50;
+    let py = 50;
+    el.addEventListener("pointermove", (e) => {
+      const r = el.getBoundingClientRect();
+      px = ((e.clientX - r.left) / r.width) * 100;
+      py = ((e.clientY - r.top) / r.height) * 100;
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          el.style.setProperty("--mx", `${px}%`);
+          el.style.setProperty("--my", `${py}%`);
+          raf = 0;
+        });
+      }
+    });
+  }
+</script>

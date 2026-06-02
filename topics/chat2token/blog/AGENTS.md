@@ -9,7 +9,7 @@
 ## 0. 用户偏好与红线（违反必被打回）
 
 - **绝不乱改配色**。沿用全站既有色系（`src/styles/design.css` 变量），高亮统一用 cyan 设计标准色；用户对"瞎改色系"零容忍。
-- **极简风、不要 border**。组件靠纯白底（`oklch(1 0 0)`）划分区域，不要外框、不要光感 / sheen 渐变。
+- **极简风、不要 border**。组件靠纯白底（`oklch(1 0 0)`）划分区域，不要外框、不要光感 / sheen 渐变。**例外**：落地页/hub 的门面卡片（`src/components/TopicCard.astro`）**沿用全站「按钮」语言**——1.5px 边 + 硬底边阴影（`0 var(--press) 0 0 var(--edge)`）、hover 上浮 + 边染 accent、点击下沉，和 `.btn` 同款手感。美化部分 = hover 时整张卡浮现一片柔和彩色渐变（oklch 柔光斑按光标做视差），**只由鼠标位置驱动、无任何自发动画**（鼠标停=光停）。**不要**软阴影高级卡那一套，也不要自转/呼吸等常驻动画。
 - **组件可比正文宽**，但小屏（`max-width: 640px`）要负 margin 出血 + 保留边距；超长内容**内部滚动**，不要换行，且滚动不能带着 tab / 表头一起动。
 - **输入框、按钮严格照设计稿**：复用 `.field` / `.btn`（见第 2 节），不要自己造样式。
 - **彩色按钮有固定语义**：重置 = 橙（`btn-warning`）、上下/导航 = 青（`btn-primary`）、自动播放 = 绿（`btn-success`）；图标一律用 lucide（`@lucide/astro`）。
@@ -19,6 +19,12 @@
 
 ## 1. 技术栈与文件约定
 
+- **路由按 topic 分，不按类型分**（topic-first）。一级路径 = topic slug，topic 内部再分 surface：
+  - `/` = topic 索引页；`/<topic>` = 该 topic 的 hub 落地页。
+  - `/<topic>/playground` = 交互 app；`/<topic>/blog/<lang>` = 长文（镜像 `topics/<topic>/blog/<lang>` 目录）。
+  - `src/pages/` 只放**薄壳**（Layout + 站点 chrome + `import` topics 内容），内容永远在 `topics/<topic>/...`。例：`src/pages/chat2token/blog/zh.astro` 只是包 `topics/chat2token/blog/zh/index.astro`。
+  - `/design` 是跨 topic 基础设施，留在顶层。topic 多了再考虑 `src/pages/[topic]/...` 动态路由 + manifest，现在静态薄壳即可。
+  - 加新 topic：在 `src/pages/index.astro` 的 `topics[]` 加一条 + 建 `src/pages/<topic>/` 薄壳。playground 入口链接统一指向 `/<topic>/playground`。
 - **Astro islands + 内联 vanilla `<script>`**，不是 React 组件。原因：token chip 等是 client 脚本拼的**原始 HTML**，拿不到 Astro 的 scoped 属性 → 样式必须走**全局 CSS**。
 - **每个 lab = `XxxLab.astro` + `xxx-lab.css` 同目录**；在 `.astro` frontmatter 里 `import "./xxx-lab.css"`。CSS 文件顶部注明「topic-specific，非设计系统，全局样式因为 chip 是脚本拼的」。
 - **脚本套路**：server 端只渲染**静态骨架**（带 `data-*` 属性的 cell / chip），client 脚本 `document.querySelectorAll("[data-xxx]").forEach(init)`，`init` 内用 `data-*` 选择器拿元素，只 **toggle class** + 改文本。状态（step / cache…）存在闭包变量里，`render()` 重画。
@@ -54,7 +60,7 @@
 ## 5. 每次改动的自检流程
 
 1. 改完 `ReadLints` 看有无 lint。
-2. dev server 一般已在跑（`localhost:4321`，多终端时挑 active 的那个）；`curl -s localhost:4321/learn/chat2token/ -o /tmp/x.html` + `grep` 关键 class 确认渲染、节点数对。**别自己再起 dev server**（用户明确要求过）。
+2. dev server 一般已在跑（`localhost:4321`，多终端时挑 active 的那个）；`curl -s localhost:4321/chat2token/blog/zh -o /tmp/x.html` + `grep` 关键 class 确认渲染、节点数对。**别自己再起 dev server**（用户明确要求过）。
 3. 分词相关改动：先 `node -e "const{encode,decode}=require('gpt-tokenizer/encoding/o200k_base');..."` 实测，再把结果写进组件。
 4. 配色 / 文案改动遵守第 0 节红线；拿不准先问。
 

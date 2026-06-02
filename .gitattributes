@@ -38,6 +38,16 @@
 *.mov         filter=lfs diff=lfs merge=lfs -text
 *.zip         filter=lfs diff=lfs merge=lfs -text
 
+# Video demo image assets (avatars, screen captures) — heavy bitmaps that we
+# don't want bloating the git history. Path-scoped so the lightweight site
+# images under src/ keep the plain `*.jpg binary` rule above.
+topics/chat2token/video/assets/*.jpg           filter=lfs diff=lfs merge=lfs -text
+topics/chat2token/video/assets/*.jpeg          filter=lfs diff=lfs merge=lfs -text
+topics/chat2token/video/assets/*.png           filter=lfs diff=lfs merge=lfs -text
+topics/chat2token/video/remotion/public/*.jpg  filter=lfs diff=lfs merge=lfs -text
+topics/chat2token/video/remotion/public/*.jpeg filter=lfs diff=lfs merge=lfs -text
+topics/chat2token/video/remotion/public/*.png  filter=lfs diff=lfs merge=lfs -text
+
 # ─── Generated / lockfiles ──────────────────────────────────────────────
 # Suppress GitHub diff noise; still tracked.
 pnpm-lock.yaml linguist-generated=true -diff

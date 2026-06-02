@@ -1,0 +1,75 @@
+---
+// Topic hub for chat2token: one landing page linking to the topic's surfaces
+// (interactive playground + long-form article). Video output is a build
+// artifact (mp4), not a web route.
+import Layout from "~/layouts/Layout.astro";
+import Header from "~/components/Header.astro";
+import CoverHero from "~/components/CoverHero.astro";
+import TopicCard from "~/components/TopicCard.astro";
+
+export const prerender = true;
+
+const surfaces = [
+  {
+    href: "/chat2token/blog/zh",
+    kind: "文章 · 中文",
+    title: "从提示词到 KV Cache",
+    desc: "交互式博客，包含多个可玩的小组件：消息转换、BPE 合并、KV Cache、前缀缓存命中。",
+    accent: "var(--color-primary-500)",
+  },
+  {
+    href: "/chat2token/playground",
+    kind: "Playground",
+    title: "交互式实验",
+    desc: "自由探索和 AI 的对话框之下，都发生了什么。",
+    accent: "var(--color-accent-500)",
+  },
+];
+---
+
+<Layout title="Chat to Token · TokenTour">
+  <Header />
+
+  <main class="column hub">
+    <CoverHero
+      label="Chat to Token 封面"
+      titleLayout="stack"
+      titleLines={[
+        { text: "Chat", tone: "primary", size: "hero" },
+        { text: "to", tone: "accent", size: "connector" },
+        { text: "Token", tone: "primary", size: "hero" },
+      ]}
+    />
+
+    <p class="hub__lede">
+      从提示词到 KV Cache：和 AI 的对话如何变成 Messages、Chat Template、Token 和 KV Cache。
+      <br />
+      你可以从任意一种方式开始探索，也可以同时进行，内容范围大体相同。
+    </p>
+
+    <div class="hub__grid">
+      {
+        surfaces.map((s) => (
+          <TopicCard href={s.href} eyebrow={s.kind} title={s.title} desc={s.desc} accent={s.accent} />
+        ))
+      }
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .hub {
+    padding-top: 0.5rem;
+  }
+  .hub__lede {
+    margin: 2.25rem 0 2.25rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--color-ink-soft);
+  }
+  .hub__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1.1rem;
+  }
+</style>

@@ -2,7 +2,7 @@
 // chat2token —「从一句话到 KV Cache」中文长文。
 //
 // 这是文章正文组件（仅 prose，不含 Layout / 站点框架），由
-// `src/pages/learn/chat2token.astro` 这层薄壳包进 Layout 后才成为路由。
+// `src/pages/chat2token/blog/zh.astro` 这层薄壳包进 Layout 后才成为路由。
 // 文案来自 `topics/chat2token/docs/outline.md`，尽量逐字保留；需要交互
 // 可视化的位置用一个 accent Callout 引导读者去 Playground 沙盒亲手实验。
 import CodeBlock from "~/components/CodeBlock.astro";
@@ -10,6 +10,7 @@ import ChatTemplate from "~/components/ChatTemplate.astro";
 import LineRef from "~/components/LineRef.astro";
 import Callout from "~/components/Callout.astro";
 import PlaygroundCta from "./PlaygroundCta.astro";
+import PlaygroundTry from "./PlaygroundTry.astro";
 import MessageView from "../MessageView.astro";
 import TemplateLab from "../TemplateLab.astro";
 import BpeLab from "../BpeLab.astro";
@@ -377,15 +378,13 @@ const toolCallSnippet = `<tool_call>
 ---
 
 <article class="prose">
-  <h1>Chat2Token</h1>
-
   <p class="lede">
     当你和 AI 聊天，抑或是对 Agent 指点江山时，在对话框之下到底发生了什么？你的对话历史、工具等等，是怎么转化为
     Tokens 的？
   </p>
 
   <p>
-    在 Token 去哪（TokenTour）系列中，我们会通过一系列交互式文章、视频、实验等，探讨大模型/Agent
+    在 Token 之旅（TokenTour）系列中，我们会通过一系列交互式文章、视频、实验等，探讨大模型/Agent
     世界的方方面面，这一次，我们先来看看你的一句话是怎么被大模型理解的。
   </p>
 
@@ -530,11 +529,7 @@ const toolCallSnippet = `<tool_call>
       在沙盒中点开「查看 Messages JSON」，可以看到当前对话被组织成的完整消息列表；编辑任意一条消息，下游的
       Chat Template、Tokens、KV Cache 都会随之实时变化。
     </p>
-    <p class="pg-try">
-      <a class="btn btn-accent" href="/" target="_blank" rel="noopener">
-        打开 Playground 亲手实验 →
-      </a>
-    </p>
+    <PlaygroundTry />
   </Callout>
 
   <h2>Chat Template</h2>
@@ -659,11 +654,7 @@ const toolCallSnippet = `<tool_call>
       在沙盒右侧的 Chat Template 面板里切换 Qwen3 / DeepSeek-V3 / GPT-OSS，可以并排对比同一段
       Messages 被不同模版渲染出的纯文本；hover 任意片段会在各面板间联动高亮其归属的消息与角色。
     </p>
-    <p class="pg-try">
-      <a class="btn btn-accent" href="/" target="_blank" rel="noopener">
-        打开 Playground 亲手实验 →
-      </a>
-    </p>
+    <PlaygroundTry />
   </Callout>
 
   <h2>Token</h2>
@@ -745,11 +736,7 @@ const toolCallSnippet = `<tool_call>
       Token 小块、对应的 Token ID 与词表大小；hover 单个 Token 会高亮它在 Chat Template
       中的来源位置。
     </p>
-    <p class="pg-try">
-      <a class="btn btn-accent" href="/" target="_blank" rel="noopener">
-        打开 Playground 亲手实验 →
-      </a>
-    </p>
+    <PlaygroundTry />
   </Callout>
 
   <h2>KV Cache</h2>
@@ -836,11 +823,7 @@ const toolCallSnippet = `<tool_call>
       输出」三色条；编辑靠前的某条消息会看到「缓存命中输入」实时缩短、改回原样又恢复，切换模型架构还能对比每
       Token 的 KV 占用量级。
     </p>
-    <p class="pg-try">
-      <a class="btn btn-accent" href="/" target="_blank" rel="noopener">
-        打开 Playground 亲手实验 →
-      </a>
-    </p>
+    <PlaygroundTry />
   </Callout>
 
   <p>
@@ -870,23 +853,3 @@ const toolCallSnippet = `<tool_call>
     Token 与缓存、精打细算的工程取舍。Token 去哪了？现在你已经知道答案了。
   </p>
 </article>
-
-<style>
-  /* The "go experiment" button sits bottom-right of each accent callout, in
-   * the same color family (.btn-accent). Overrides win over `.prose a`. */
-  .pg-try {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 0.6rem;
-    margin-bottom: 0;
-  }
-  .pg-try .btn {
-    color: var(--btn-fg);
-    text-decoration: none;
-    font-size: 0.78rem;
-    padding: 0.45rem 0.9rem;
-  }
-  .pg-try .btn:hover {
-    text-decoration: none;
-  }
-</style>

@@ -1,0 +1,14 @@
+---
+import Layout from "~/layouts/Layout.astro";
+import App from "../../../topics/chat2token/app/App.tsx";
+
+// The shell is a static HTML page — the entire interactive surface is
+// hydrated client-side by `<App>`. Prerendering keeps cold-start at zero
+// (just an asset hit) and only the `/api/proxy` route is left for the
+// Worker.
+export const prerender = true;
+---
+
+<Layout title="Chat to Token · Playground">
+  <App client:load />
+</Layout>

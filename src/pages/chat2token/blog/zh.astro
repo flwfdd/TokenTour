@@ -1,0 +1,42 @@
+---
+// Thin route shell for the chat2token long-form article (Chinese).
+//
+// Per the topic boundary convention, the prose lives with the topic
+// (`topics/chat2token/blog/zh/index.astro`) and `src/pages/` only adds a
+// Layout wrapper + site chrome. Static-prerendered: no Worker needed.
+import Layout from "~/layouts/Layout.astro";
+import Header from "~/components/Header.astro";
+import CoverHero from "~/components/CoverHero.astro";
+import Toc from "~/components/Toc.astro";
+import Article from "../../../../topics/chat2token/blog/zh/index.astro";
+
+export const prerender = true;
+---
+
+<Layout title="Chat to Token · 从一句话到 KV Cache">
+  <Header />
+
+  <Toc />
+
+  <main class="column blog">
+    <CoverHero
+      label="Chat to Token 封面"
+      titleLayout="stack"
+      titleLines={[
+        { text: "Chat", tone: "primary", size: "hero" },
+        { text: "to", tone: "accent", size: "connector" },
+        { text: "Token", tone: "primary", size: "hero" },
+      ]}
+    />
+    <Article />
+  </main>
+</Layout>
+
+<style>
+  .blog {
+    padding-top: 0.5rem;
+  }
+  .blog :global(.cover) {
+    margin-bottom: 2rem;
+  }
+</style>

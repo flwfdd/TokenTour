@@ -1,0 +1,23 @@
+---
+// Bottom-right playground CTA row — shared by the top callout and section callouts.
+import PlaygroundBtn from "./PlaygroundBtn.astro";
+
+interface Props {
+  href?: string;
+  label?: string;
+}
+const { href, label } = Astro.props;
+---
+
+<p class="pg-try">
+  <PlaygroundBtn href={href} label={label} />
+</p>
+
+<style>
+  .pg-try {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.6rem;
+    margin-bottom: 0;
+  }
+</style>
