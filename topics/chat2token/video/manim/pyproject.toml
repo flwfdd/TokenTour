@@ -1,0 +1,8 @@
+[project]
+name = "tokentour-manim"
+version = "0.1.0"
+description = "TokenTour explainer video — Manim scenes (math/geometry inserts) in the TokenTour design language."
+requires-python = ">=3.12"
+dependencies = [
+    "manim>=0.20.1",
+]

@@ -1,0 +1,6 @@
+.venv/
+media/
+out/
+__pycache__/
+frame_*.png
+f_*.png

@@ -1,0 +1,26 @@
+{
+  "name": "tokentour-video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TokenTour explainer video — Remotion compositions matching the TokenTour design language.",
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio",
+    "studio": "remotion studio",
+    "render": "remotion render",
+    "still": "remotion still",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/google-fonts": "4.0.468",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.468"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.468",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "typescript": "5.7.3"
+  }
+}

@@ -10,6 +10,8 @@ dist
 .vercel
 .netlify
 .cache
+# Render / export output (Remotion, Manim, etc.)
+**/out/
 # ─── Cloudflare Wrangler ─────────────────────────────────────────────────
 .wrangler
 .dev.vars
