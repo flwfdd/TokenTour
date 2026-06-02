@@ -78,6 +78,8 @@ const klFormula = tex(
 // These are shown verbatim next to each live example so this page works
 // as a copy-paste reference for whoever (human or agent) builds the next
 // topic. Keep them in sync with the real component APIs.
+// Astro frontmatter delimiters must not appear as literal lines here — use `fm`.
+const fm = "---";
 
 const usageForm = `<!-- 纯 CSS class，无需组件，沿用 .btn 的厚阴影风格 -->
 
@@ -107,9 +109,9 @@ const usageForm = `<!-- 纯 CSS class，无需组件，沿用 .btn 的厚阴影�
   <input type="checkbox" checked /><span class="choice__mark"></span>web_search
 </label>`;
 
-const usageCallout = `---
+const usageCallout = `${fm}
 import Callout from "~/components/Callout.astro";
----
+${fm}
 <Callout type="primary" title="定义">
   关键概念，或指向 playground 的入口。
 </Callout>
@@ -117,9 +119,9 @@ import Callout from "~/components/Callout.astro";
 <!-- type:  note(默认) · primary · accent · success · warning · danger -->
 <!-- title: 省略则不渲染标题行，只靠底色表意 -->`;
 
-const usageAccordion = `---
+const usageAccordion = `${fm}
 import Accordion from "~/components/Accordion.astro";
----
+${fm}
 <Accordion title="什么是 KV cache？" open>
   <p>正文……展开时像小票被打印出来。</p>
 </Accordion>
@@ -127,10 +129,10 @@ import Accordion from "~/components/Accordion.astro";
 <!-- title: 必填，折叠头文字 -->
 <!-- open:  可选布尔，首屏默认展开 -->`;
 
-const usageTabs = `---
+const usageTabs = `${fm}
 import Tabs from "~/components/Tabs.astro";
 import CodeBlock from "~/components/CodeBlock.astro";
----
+${fm}
 <Tabs labels={["TypeScript", "Python", "输出"]}>
   <Fragment slot="0"><CodeBlock code={ts}  lang="ts" /></Fragment>
   <Fragment slot="1"><CodeBlock code={py}  lang="python" /></Fragment>
@@ -140,25 +142,25 @@ import CodeBlock from "~/components/CodeBlock.astro";
 <!-- labels: 标签文字数组 -->
 <!-- 面板用编号 slot（"0"、"1"…）与 labels 顺序一一对应 -->`;
 
-const usageCodeBlock = `---
+const usageCodeBlock = `${fm}
 import CodeBlock from "~/components/CodeBlock.astro";
----
+${fm}
 <CodeBlock code={source} lang="ts" title="diffPrefix.ts" />
 
 <!-- code:  源码字符串（必填） -->
 <!-- lang:  Shiki 语言 id，默认 "ts" -->
 <!-- title: 标题栏文件名，省略则显示语言名 -->`;
 
-const usageChart = `---
+const usageChart = `${fm}
 import KLDivergenceDemo from "~/components/KLDivergenceDemo.tsx";
----
+${fm}
 <!-- React island：必须带 client 指令才会 hydrate。 -->
 <!-- client:visible = 滚动进视口再加载，适合首屏以下的重组件。 -->
 <KLDivergenceDemo client:visible />`;
 
-const usageToc = `---
+const usageToc = `${fm}
 import Toc from "~/components/Toc.astro";
----
+${fm}
 <!-- 放在 Layout 内、reading column 外即可（自身 position: fixed） -->
 <Toc />
 

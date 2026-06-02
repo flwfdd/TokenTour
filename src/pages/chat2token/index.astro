@@ -1,7 +1,6 @@
 ---
 // Topic hub for chat2token: one landing page linking to the topic's surfaces
-// (interactive playground + long-form article). Video output is a build
-// artifact (mp4), not a web route.
+// (article, playground, and the published Bilibili episode).
 import Layout from "~/layouts/Layout.astro";
 import Header from "~/components/Header.astro";
 import CoverHero from "~/components/CoverHero.astro";
@@ -14,15 +13,23 @@ const surfaces = [
     href: "/chat2token/blog/zh",
     kind: "文章 · 中文",
     title: "从提示词到 KV Cache",
-    desc: "交互式博客，包含多个可玩的小组件：消息转换、BPE 合并、KV Cache、前缀缓存命中。",
+    desc: "包含多个可玩的小组件的交互式博客",
     accent: "var(--color-primary-500)",
   },
   {
     href: "/chat2token/playground",
     kind: "Playground",
     title: "交互式实验",
-    desc: "自由探索和 AI 的对话框之下，都发生了什么。",
+    desc: "自由探索在 AI 的对话之下都发生了什么",
     accent: "var(--color-accent-500)",
+  },
+  {
+    href: "https://www.bilibili.com/video/BV1VWVz6TExk/",
+    kind: "视频 · Bilibili",
+    title: "失忆+不识字的 AI，凭什么「稳稳接住你」",
+    desc: "10 分钟可视化科普视频",
+    accent: "#00a1d6",
+    external: true,
   },
 ];
 ---
@@ -50,7 +57,14 @@ const surfaces = [
     <div class="hub__grid">
       {
         surfaces.map((s) => (
-          <TopicCard href={s.href} eyebrow={s.kind} title={s.title} desc={s.desc} accent={s.accent} />
+          <TopicCard
+            href={s.href}
+            eyebrow={s.kind}
+            title={s.title}
+            desc={s.desc}
+            accent={s.accent}
+            external={s.external}
+          />
         ))
       }
     </div>

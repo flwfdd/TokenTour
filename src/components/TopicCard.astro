@@ -14,12 +14,28 @@ interface Props {
   /** Accent hue (border + text). Any CSS color or var(). */
   accent?: string;
   cta?: string;
+  /** Open in a new tab (for off-site links). */
+  external?: boolean;
 }
-const { href, eyebrow, title, subtitle, desc, accent = "var(--color-primary-500)", cta } =
-  Astro.props;
+const {
+  href,
+  eyebrow,
+  title,
+  subtitle,
+  desc,
+  accent = "var(--color-primary-500)",
+  cta,
+  external = false,
+} = Astro.props;
 ---
 
-<a class="tcard" href={href} data-spotlight style={`--accent:${accent}`}>
+<a
+  class="tcard"
+  href={href}
+  data-spotlight
+  style={`--accent:${accent}`}
+  {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+>
   <span class="tcard__fog" aria-hidden="true"></span>
   {eyebrow && <span class="tcard__eyebrow">{eyebrow}</span>}
   <span class="tcard__title">{title}</span>
