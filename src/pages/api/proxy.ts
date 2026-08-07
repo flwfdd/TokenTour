@@ -1,33 +1,23 @@
 import type { APIRoute } from "astro";
 
-// Must NOT be statically prerendered: this is a runtime forwarder.
-export const prerender = false;
+// Cloudflare builds keep this as a runtime forwarder. Static GitHub Pages
+// mirrors prerender a tiny placeholder because there is no Worker runtime.
+export const prerender = process.env.TOKENTOUR_STATIC === "1";
 
-const ALLOWED_PROVIDERS = [
-  "api.openai.com",
-  "api.anthropic.com",
-  "api.deepseek.com",
-  "api.siliconflow.cn",
-  "dashscope.aliyuncs.com",
-  "openrouter.ai",
-];
-
-function isAllowed(target: string): boolean {
+function parseTarget(target: string): URL | null {
   try {
     const url = new URL(target);
-    return ALLOWED_PROVIDERS.some(
-      (host) => url.hostname === host || url.hostname.endsWith("." + host),
-    );
+    return url.protocol === "https:" || url.protocol === "http:" ? url : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
 /**
  * Generic BYOK forwarder. The client (see `topics/chat2token/app/lib/providers/proxyFetch.ts`)
- * supplies the real upstream URL via the `x-tokentour-target` header so we
- * don't bake provider routes into the worker. The Authorization / x-api-key
- * headers travel through untouched.
+ * supplies the real upstream URL via the `x-tokentour-target` header so custom
+ * OpenAI-compatible providers can be used without baking provider routes into
+ * the worker. The Authorization / x-api-key headers travel through untouched.
  *
  * Runs identically under `@astrojs/node` (dev) and `@astrojs/cloudflare`
  * (deploy) because we only use standard Web `fetch` / `Request` /
@@ -38,8 +28,9 @@ export const POST: APIRoute = async ({ request }) => {
   if (!target) {
     return new Response("missing x-tokentour-target", { status: 400 });
   }
-  if (!isAllowed(target)) {
-    return new Response("provider not in allow-list", { status: 403 });
+  const targetUrl = parseTarget(target);
+  if (!targetUrl) {
+    return new Response("target must be an http(s) URL", { status: 400 });
   }
 
   const headers = new Headers(request.headers);
@@ -50,7 +41,7 @@ export const POST: APIRoute = async ({ request }) => {
   headers.delete("cf-ray");
   headers.delete("cf-visitor");
 
-  const upstream = await fetch(target, {
+  const upstream = await fetch(targetUrl.href, {
     method: "POST",
     headers,
     body: request.body,
@@ -67,3 +58,6 @@ export const POST: APIRoute = async ({ request }) => {
     headers: respHeaders,
   });
 };
+
+export const GET: APIRoute = async () =>
+  new Response("TokenTour static mirror: /api/proxy is unavailable.", { status: 404 });

@@ -1,0 +1,80 @@
+name: Deploy static mirror to tokentour.github.io
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tokentour-github-io
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_REPO: TokenTour/tokentour.github.io
+
+    steps:
+      - name: Checkout TokenTour
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch tokenizer assets
+        run: pnpm fetch-tokenizers
+        env:
+          HF_ENDPOINT: https://huggingface.co
+
+      - name: Build static site
+        run: pnpm build:static
+
+      - name: Publish to tokentour.github.io
+        env:
+          GH_PAGES_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_PAGES_TOKEN}" ]; then
+            echo "Missing GH_PAGES_TOKEN secret."
+            exit 1
+          fi
+
+          pages_dir="$(mktemp -d)"
+          git init "${pages_dir}"
+          git -C "${pages_dir}" remote add origin "https://x-access-token:${GH_PAGES_TOKEN}@github.com/${TARGET_REPO}.git"
+
+          if git -C "${pages_dir}" fetch --depth=1 origin main; then
+            git -C "${pages_dir}" checkout -B main FETCH_HEAD
+          else
+            git -C "${pages_dir}" checkout -B main
+          fi
+
+          rsync -a --delete --exclude ".git" dist/ "${pages_dir}/"
+          touch "${pages_dir}/.nojekyll"
+
+          git -C "${pages_dir}" config user.name "github-actions[bot]"
+          git -C "${pages_dir}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "${pages_dir}" add -A
+
+          if git -C "${pages_dir}" diff --cached --quiet; then
+            echo "No static site changes to publish."
+            exit 0
+          fi
+
+          git -C "${pages_dir}" commit -m "deploy: update static site"
+          git -C "${pages_dir}" push origin main

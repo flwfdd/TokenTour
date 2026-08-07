@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "TOKENTOUR_LOCAL_DEV=1 astro dev",
     "build": "astro build",
+    "build:static": "TOKENTOUR_STATIC=1 PUBLIC_TOKENTOUR_STATIC=1 astro build",
     "preview": "wrangler dev",
     "deploy": "astro build && wrangler deploy",
     "astro": "astro",
