@@ -256,7 +256,6 @@ const hfPending = new Map<string, Promise<TokenizerEntry>>();
 const hfErrors = new Map<string, string>();
 type LoadListener = () => void;
 const loadListeners = new Set<LoadListener>();
-const IS_STATIC_MIRROR = import.meta.env.PUBLIC_TOKENTOUR_STATIC === "1";
 
 /**
  * Subscribe to "an HF tokenizer finished loading (or failed)" events. Returns
@@ -324,11 +323,6 @@ export function loadHfTokenizer(key: string): Promise<TokenizerEntry> {
 
   hfErrors.delete(key);
   const promise = (async () => {
-    if (IS_STATIC_MIRROR) {
-      throw new Error(
-        "GitHub Pages static mirror does not bundle the HuggingFace tokenizer runtime. Use the Cloudflare version for Qwen3 / DeepSeek-V3 tokenizers.",
-      );
-    }
     const mod = await import("@huggingface/transformers");
     const { AutoTokenizer, env } = mod;
     configureTransformersEnv(env);
