@@ -50,8 +50,8 @@ jobs:
           set -euo pipefail
 
           if [ -z "${GH_PAGES_TOKEN}" ]; then
-            echo "Missing GH_PAGES_TOKEN secret."
-            exit 1
+            echo "GH_PAGES_TOKEN secret is not set – skipping GitHub Pages publish."
+            exit 0
           fi
 
           pages_dir="$(mktemp -d)"
@@ -77,4 +77,7 @@ jobs:
           fi
 
           git -C "${pages_dir}" commit -m "deploy: update static site"
-          git -C "${pages_dir}" push origin main
+          if ! git -C "${pages_dir}" push origin main; then
+            echo "::warning::Push to ${TARGET_REPO} failed – check that GH_PAGES_TOKEN has write access to that repository."
+            exit 0
+          fi
