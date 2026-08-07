@@ -1,7 +1,6 @@
 ---
-// Site home = topic index. Each topic gets one card linking to its hub
-// (`/<topic>`); the topic's own surfaces (playground / article / video) hang
-// off that hub. Add a new entry here when a topic is added.
+// Chinese site home. The default `/` route is English; this route keeps the
+// original Chinese copy available from the language switch.
 import Layout from "~/layouts/Layout.astro";
 import Header from "~/components/Header.astro";
 import CoverHero from "~/components/CoverHero.astro";
@@ -13,29 +12,35 @@ const topics = [
   {
     slug: "chat2token",
     title: "Chat to Token",
-    desc: "From prompt to KV Cache: how an AI conversation becomes Messages, a Chat Template, Tokens, and KV Cache",
+    desc: "从提示词到 KV Cache：和 AI 的对话如何变成 Messages、Chat Template、Token 和 KV Cache",
     accent: "var(--color-primary-500)",
   },
 ];
 ---
 
-<Layout title="TokenTour · Interactive LLM Visualizations">
-  <Header langHref="/zh" langLabel="中文" langAria="Switch to Chinese" />
+<Layout title="TokenTour · 交互式 LLM 可视化" lang="zh-CN">
+  <Header langHref="/" langLabel="English" langAria="Switch to English" />
 
   <main class="column home">
-    <CoverHero />
+    <CoverHero
+      label="TokenTour 封面"
+      titleLines={[
+        { text: "Token", tone: "primary", size: "hero" },
+        { text: "之旅", tone: "accent", size: "lead" },
+      ]}
+    />
 
     <p class="home__lede">
-      TokenTour is a series of interactive articles, videos, and experiments.
+      TokenTour 是一个包含一系列视频、文章、实验的企划。
       <br />
-      It explores large language models and agents through playful, hands-on visualizations.
+      带你以交互式可视化的方式，了解大模型 / Agent 的方方面面。
     </p>
 
     <div class="home__grid">
       {
         topics.map((t) => (
           <TopicCard
-            href={`/${t.slug}`}
+            href={`/${t.slug}/zh`}
             eyebrow={t.slug}
             title={t.title}
             desc={t.desc}
@@ -48,7 +53,6 @@ const topics = [
 </Layout>
 
 <style>
-  /* Cover sits flush under the header — drop the column's tall top padding. */
   .home {
     padding-top: 0.5rem;
   }

@@ -4,6 +4,8 @@ import react from "@astrojs/react";
 import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
 
+const isLocalDev = process.env.TOKENTOUR_LOCAL_DEV === "1";
+
 // We ship one static page (`src/pages/index.astro`, explicitly prerendered)
 // plus one Worker-rendered endpoint (`src/pages/api/proxy.ts`). The
 // Cloudflare adapter writes prerendered pages to `dist/` as static assets
@@ -11,20 +13,33 @@ import tailwindcss from "@tailwindcss/vite";
 // config in `wrangler.jsonc`.
 export default defineConfig({
   output: "server",
-  adapter: cloudflare({
-    // `nodejs_compat` is set in wrangler.jsonc — needed for a few transitive
-    // dependencies (`@huggingface/jinja` etc.) that touch `node:*` APIs at
-    // module load time even though our own code is platform-neutral.
-    //
-    // `platformProxy` is intentionally left off: it spins up a Wrangler dev
-    // proxy during `astro dev` to expose CF bindings via `Astro.locals`,
-    // but TokenTour doesn't use any (KV / D1 / R2 / etc.), and enabling it
-    // makes the build fail when `wrangler.jsonc`'s `main` path doesn't yet
-    // exist on a clean checkout.
-  }),
+  ...(isLocalDev
+    ? {}
+    : {
+        adapter: cloudflare({
+          // `nodejs_compat` is set in wrangler.jsonc — needed for a few transitive
+          // dependencies (`@huggingface/jinja` etc.) that touch `node:*` APIs at
+          // module load time even though our own code is platform-neutral.
+          //
+          // `platformProxy` is intentionally left off: it spins up a Wrangler dev
+          // proxy during `astro dev` to expose CF bindings via `Astro.locals`,
+          // but TokenTour doesn't use any (KV / D1 / R2 / etc.), and enabling it
+          // makes the build fail when `wrangler.jsonc`'s `main` path doesn't yet
+          // exist on a clean checkout.
+        }),
+      }),
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      watch: {
+        // This workspace often runs inside Linux environments with a low
+        // inotify watcher ceiling. Polling avoids `ENOSPC: System limit for
+        // number of file watchers reached` while keeping `pnpm dev` usable.
+        usePolling: true,
+        interval: 250,
+      },
+    },
     // Force a single React instance across the app and pre-bundled deps.
     // recharts pulls React through its own module graph; without dedupe the
     // SSR optimizer can end up with a second copy, surfacing as "Invalid

@@ -6,8 +6,10 @@ import { formatBytes, listModels } from "./lib/modelRegistry";
 import type { CellState } from "./lib/kvSim";
 import { cellStateAt } from "./lib/kvSim";
 import type { TokenInfo, TokenSegment } from "./lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR, deriveHoverRole, matchesHover, tintSurfaceStyle } from "./visual";
+import { SEG_ROLE_VAR, deriveHoverRole, matchesHover, tintSurfaceStyle } from "./visual";
 import RoleLegend, { countBySegment } from "./RoleLegend";
+import { useLang } from "./i18n";
+import { segmentLabel, type Lang } from "./locale";
 
 const STATE_COLOR_VAR: Record<CellState, string> = {
   reused: "--color-kv-reused",
@@ -16,12 +18,55 @@ const STATE_COLOR_VAR: Record<CellState, string> = {
   pending: "--color-border",
 };
 
-const STATE_LABEL: Record<CellState, string> = {
-  reused: "缓存命中输入",
-  prefill: "缓存未命中输入",
-  decode: "输出",
-  pending: "未占用",
+const STATE_LABEL: Record<Lang, Record<CellState, string>> = {
+  en: {
+    reused: "cached input",
+    prefill: "uncached input",
+    decode: "output",
+    pending: "unused",
+  },
+  zh: {
+    reused: "缓存命中输入",
+    prefill: "缓存未命中输入",
+    decode: "输出",
+    pending: "未占用",
+  },
 };
+
+const kvCopy = {
+  en: {
+    modelTitle:
+      "Choose the imaginary architecture. It affects KV cache layer/head/headDim/dtype estimates and the template family tied to this model description. It is decoupled from the API model you actually call.",
+    ctxTitle: "Demo context window size. Affects percentages and the capacity bar; capped by the model's real maxContext.",
+    roleLabel: "Roles:",
+    kvState: "KV cache state",
+    eachCell: "each cell =",
+    cells: "cells",
+    totalTokens: "total tokens",
+    kvMemory: "KV memory",
+    fullWindow: "full window",
+    perTokenKv: "per-token KV",
+    contextUsage: "context window usage",
+    noTokens: "No tokens",
+    noKv: "No KV cache",
+  },
+  zh: {
+    modelTitle:
+      "选择“假想架构”。会同时影响：① KV cache 的层数/头数/headDim/dtype 估算；② chat template 家族（因为 family 字段绑在同一份模型描述里）。和实际调用的 API 模型解耦。",
+    ctxTitle: "演示用的总上下文窗口大小（影响百分比和容量条），与模型真实 maxContext 取最小",
+    roleLabel: "角色:",
+    kvState: "KV cache 状态",
+    eachCell: "每方格 =",
+    cells: "格",
+    totalTokens: "总 tokens",
+    kvMemory: "KV 内存",
+    fullWindow: "满窗口",
+    perTokenKv: "每 token KV",
+    contextUsage: "上下文窗口占用",
+    noTokens: "无 tokens",
+    noKv: "无 KV cache",
+  },
+} as const;
 
 /** Above ~ this many tokens, the KV cell grid switches from per-token to bucketed cells. */
 const MAX_KV_CELLS = 512;
@@ -51,6 +96,8 @@ interface KvCell {
 }
 
 export default function LensContextKv() {
+  const lang = useLang();
+  const copy = kvCopy[lang];
   const view = useLensView();
   const snapshot = useKvSnapshot();
   const hoverTokenIndex = useConversation((s) => s.hoverTokenIndex);
@@ -140,7 +187,11 @@ export default function LensContextKv() {
       paneId="kv"
       subtitle={
         <span>
-          {total.toLocaleString()} tok · {ctxPct.toFixed(1)}% of {limit.toLocaleString()} ·{" "}
+          {total.toLocaleString()} tok ·{" "}
+          {lang === "zh"
+            ? `${ctxPct.toFixed(1)}% / ${limit.toLocaleString()}`
+            : `${ctxPct.toFixed(1)}% of ${limit.toLocaleString()}`}{" "}
+          ·{" "}
           {formatBytes(totalBytes)} KV
         </span>
       }
@@ -150,7 +201,7 @@ export default function LensContextKv() {
             value={modelKey}
             onChange={(e) => setModelKey(e.target.value)}
             className="text-[11px] py-0.5 px-1.5 max-w-[24ch] truncate"
-            title="选择'假想架构'。会同时影响：① KV cache 的层数/头数/headDim/dtype 估算；② chat template 家族（因为 family 字段绑在同一份模型描述里）。和实际调用的 API 模型解耦。"
+            title={copy.modelTitle}
           >
             {listModels().map((m) => (
               <option key={m.key} value={m.key}>
@@ -160,7 +211,7 @@ export default function LensContextKv() {
           </select>
           <label
             className="text-[11px] text-(--color-muted) flex items-center gap-1"
-            title="演示用的总上下文窗口大小（影响百分比和容量条），与模型真实 maxContext 取最小"
+            title={copy.ctxTitle}
           >
             ctx
             <input
@@ -183,13 +234,14 @@ export default function LensContextKv() {
           limitBytes={limitBytes}
           arch={view.arch}
           activeStates={activeStates}
+          lang={lang}
           onHoverState={(s) => {
             setHoverState(s);
             if (s != null) setHoverRole(null);
           }}
         />
 
-        <ContextTrack ctxPct={ctxPct} />
+        <ContextTrack ctxPct={ctxPct} lang={lang} />
 
         <div className="flex flex-col gap-1.5">
           <RoleLegend
@@ -200,7 +252,8 @@ export default function LensContextKv() {
               setHoverMessage(null);
               if (seg != null) setHoverState(null);
             }}
-            label="角色:"
+            label={copy.roleLabel}
+            lang={lang}
           />
           <RoleStackedBar
             segments={roleSegments}
@@ -208,6 +261,7 @@ export default function LensContextKv() {
             hoverRole={derivedHoverRole}
             hoverMessageId={hoverMessageId}
             activeStates={activeStates}
+            lang={lang}
             onHoverRole={(r) => {
               setHoverRole(r);
               setHoverMessage(null);
@@ -222,13 +276,13 @@ export default function LensContextKv() {
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-[10px] text-(--color-muted)">
             <span>
-              KV cache 状态（每方格 ={" "}
+              {copy.kvState}（{copy.eachCell}{" "}
               {kvCells[0] && kvCells[0].end - kvCells[0].start > 1
                 ? `~${kvCells[0].end - kvCells[0].start} tokens`
                 : "1 token"}
               ）
             </span>
-            <span className="font-mono">{total.toLocaleString()} 格</span>
+            <span className="font-mono">{total.toLocaleString()} {copy.cells}</span>
           </div>
           <KvCellGrid
             cells={kvCells}
@@ -237,6 +291,7 @@ export default function LensContextKv() {
             hoverRole={derivedHoverRole}
             hoverMessageId={hoverMessageId}
             activeStates={activeStates}
+            lang={lang}
             onHover={setHoverFromToken}
           />
           <PositionAxis total={total} />
@@ -252,6 +307,7 @@ function StatRow({
   limitBytes,
   arch,
   activeStates,
+  lang,
   onHoverState,
 }: {
   snapshot: ReturnType<typeof useKvSnapshot>;
@@ -259,8 +315,11 @@ function StatRow({
   limitBytes: number;
   arch: ReturnType<typeof useLensView>["arch"];
   activeStates: Set<CellState>;
+  lang: Lang;
   onHoverState: (s: CellState | null) => void;
 }) {
+  const copy = kvCopy[lang];
+  const stateLabel = STATE_LABEL[lang];
   const perTok = snapshot.perTokenBytes;
   return (
     <div
@@ -268,12 +327,12 @@ function StatRow({
       onMouseLeave={() => onHoverState(null)}
     >
       <Tile
-        label="总 tokens"
+        label={copy.totalTokens}
         value={snapshot.totalLen.toLocaleString()}
-        hint={`${ctxPct.toFixed(1)}% of window`}
+        hint={lang === "zh" ? `${ctxPct.toFixed(1)}% 窗口` : `${ctxPct.toFixed(1)}% of window`}
       />
       <Tile
-        label={STATE_LABEL.reused}
+        label={stateLabel.reused}
         value={snapshot.reusedPrefix.toLocaleString()}
         hint={formatBytes(perTok * snapshot.reusedPrefix)}
         colorVar={STATE_COLOR_VAR.reused}
@@ -282,7 +341,7 @@ function StatRow({
         onHoverState={onHoverState}
       />
       <Tile
-        label={STATE_LABEL.prefill}
+        label={stateLabel.prefill}
         value={snapshot.prefillNew.toLocaleString()}
         hint={formatBytes(perTok * snapshot.prefillNew)}
         colorVar={STATE_COLOR_VAR.prefill}
@@ -291,7 +350,7 @@ function StatRow({
         onHoverState={onHoverState}
       />
       <Tile
-        label={STATE_LABEL.decode}
+        label={stateLabel.decode}
         value={snapshot.decodeAppended.toLocaleString()}
         hint={formatBytes(perTok * snapshot.decodeAppended)}
         colorVar={STATE_COLOR_VAR.decode}
@@ -300,12 +359,12 @@ function StatRow({
         onHoverState={onHoverState}
       />
       <Tile
-        label="KV 内存"
+        label={copy.kvMemory}
         value={formatBytes(snapshot.totalBytes)}
-        hint={`/ ${formatBytes(limitBytes)} 满窗口`}
+        hint={`/ ${formatBytes(limitBytes)} ${copy.fullWindow}`}
       />
       <Tile
-        label="每 token KV"
+        label={copy.perTokenKv}
         value={formatBytes(perTok)}
         hint={`L=${arch.numLayers} · KV_H=${arch.numKvHeads}`}
       />
@@ -356,7 +415,8 @@ function Tile({
   );
 }
 
-function ContextTrack({ ctxPct }: { ctxPct: number }) {
+function ContextTrack({ ctxPct, lang }: { ctxPct: number; lang: Lang }) {
+  const copy = kvCopy[lang];
   const color =
     ctxPct >= 100
       ? "var(--color-danger)"
@@ -366,7 +426,7 @@ function ContextTrack({ ctxPct }: { ctxPct: number }) {
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-[10px] text-(--color-muted)">
-        <span>上下文窗口占用</span>
+        <span>{copy.contextUsage}</span>
         <span className="font-mono">{ctxPct.toFixed(2)}%</span>
       </div>
       <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-(--pg-desk)">
@@ -385,6 +445,7 @@ function RoleStackedBar({
   hoverRole,
   hoverMessageId,
   activeStates,
+  lang,
   onHoverRole,
   onHoverMessage,
 }: {
@@ -393,13 +454,15 @@ function RoleStackedBar({
   hoverRole: string | null;
   hoverMessageId: string | null;
   activeStates: Set<CellState>;
+  lang: Lang;
   onHoverRole: (r: string | null) => void;
   onHoverMessage: (id: string | null) => void;
 }) {
+  const copy = kvCopy[lang];
   if (segments.length === 0 || total === 0) {
     return (
       <div className="grid h-6 place-items-center rounded-md bg-(--color-surface-2) text-[10px] text-(--color-muted)">
-        无 tokens
+        {copy.noTokens}
       </div>
     );
   }
@@ -446,7 +509,7 @@ function RoleStackedBar({
                   ? "1px solid color-mix(in oklch, var(--color-bg) 50%, transparent)"
                   : undefined,
             }}
-            title={`${SEG_LABEL[s.segment]} · pos ${s.start}-${s.end - 1} · ${s.end - s.start} tok`}
+            title={`${segmentLabel(lang, s.segment)} · pos ${s.start}-${s.end - 1} · ${s.end - s.start} tok`}
           />
         );
       })}
@@ -461,6 +524,7 @@ function KvCellGrid({
   hoverRole,
   hoverMessageId,
   activeStates,
+  lang,
   onHover,
 }: {
   cells: KvCell[];
@@ -469,14 +533,17 @@ function KvCellGrid({
   hoverRole: string | null;
   hoverMessageId: string | null;
   activeStates: Set<CellState>;
+  lang: Lang;
   onHover: (
     t: { position: number; segment?: string; messageId?: string } | null,
   ) => void;
 }) {
+  const copy = kvCopy[lang];
+  const stateLabel = STATE_LABEL[lang];
   if (cells.length === 0) {
     return (
       <div className="grid h-7 place-items-center rounded-md bg-(--color-surface-2) text-[10px] text-(--color-muted)">
-        无 KV cache
+        {copy.noKv}
       </div>
     );
   }
@@ -535,7 +602,7 @@ function KvCellGrid({
                   ? "1px solid color-mix(in oklch, var(--color-bg) 50%, transparent)"
                   : undefined,
             }}
-            title={`pos ${c.start}${c.end - c.start > 1 ? `-${c.end - 1}` : ""} · ${STATE_LABEL[c.state]}`}
+            title={`pos ${c.start}${c.end - c.start > 1 ? `-${c.end - 1}` : ""} · ${stateLabel[c.state]}`}
           />
         );
       })}

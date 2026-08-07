@@ -5,7 +5,7 @@
   "description": "TokenTour — interactive visualization from Agentic Context to KV Cache",
   "packageManager": "pnpm@10.28.1",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "TOKENTOUR_LOCAL_DEV=1 astro dev",
     "build": "astro build",
     "preview": "wrangler dev",
     "deploy": "astro build && wrangler deploy",
@@ -41,10 +41,5 @@
     "tsx": "^4.20.7",
     "typescript": "^6.0.3",
     "wrangler": "^4.94.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "^7"
-    }
   }
 }

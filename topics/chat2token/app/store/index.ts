@@ -6,6 +6,7 @@ import { DEFAULT_MODEL_KEY, MODEL_REGISTRY, getModel } from "../lib/modelRegistr
 import { TEMPLATE_BUNDLES } from "../lib/chatTemplates";
 import { BUILTIN_TOOLS } from "../lib/tools";
 import { PROVIDER_PRESETS } from "../lib/providers";
+import { DEFAULT_SYSTEM_PROMPT, seedMessagesFor, isKnownSeedState } from "../localizedDefaults";
 
 export interface ConversationState {
   systemPrompt: string;
@@ -125,58 +126,11 @@ const defaultProvider: ProviderConfig = {
   maxTokens: 1024,
 };
 
-const defaultSystemPrompt =
-  "You are a concise, friendly assistant. When asked computations or facts, prefer calling the available tools instead of guessing.";
-
-// Full demo conversation as the seed so a first-time visitor immediately
-// sees how a real agent loop (user → tool-calling assistant → tool result →
-// assistant synthesis) lays out across the chat-template / tokens / KV
-// panels. IDs are stable so localStorage rehydration keeps refs consistent
-// across reloads.
-const seedToolCallId = "get_weather:seed";
-const seedMessages: Message[] = [
-  {
-    id: "seed_u1",
-    role: "user",
-    content: "今天上海天气怎么样？",
-  },
-  {
-    id: "seed_a1",
-    role: "assistant",
-    content: "",
-    tool_calls: [
-      {
-        id: seedToolCallId,
-        name: "get_weather",
-        arguments: { city: "Shanghai" },
-      },
-    ],
-  },
-  {
-    id: "seed_t1",
-    role: "tool",
-    content: JSON.stringify({
-      city: "Shanghai",
-      condition: "snow",
-      temperature: 22,
-      unit: "celsius",
-      source: "mock",
-    }),
-    tool_call_id: seedToolCallId,
-    name: "get_weather",
-  },
-  {
-    id: "seed_a2",
-    role: "assistant",
-    content: "上海今天**下雪**，气温约 22°C（来自 mock 工具）。需要我换成华氏度或查别的城市吗？",
-  },
-];
-
 export const useConversation = create<ConversationState>()(
   persist(
     (set) => ({
-      systemPrompt: defaultSystemPrompt,
-      messages: seedMessages,
+      systemPrompt: DEFAULT_SYSTEM_PROMPT.en,
+      messages: seedMessagesFor("en"),
       enabledTools: BUILTIN_TOOLS.map((t) => t.spec.name),
       modelKey: DEFAULT_MODEL_KEY,
 
@@ -327,7 +281,7 @@ export const useConversation = create<ConversationState>()(
     }),
     {
       name: "tokentour-conversation",
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         systemPrompt: s.systemPrompt,
@@ -383,7 +337,16 @@ export const useConversation = create<ConversationState>()(
             msgs[0]?.role === "user" &&
             typeof msgs[0]?.content === "string" &&
             msgs[0].content.includes("12 * (3 + 4)");
-          if (onlyOldSeed) persisted.messages = seedMessages;
+          if (onlyOldSeed) persisted.messages = seedMessagesFor("en");
+        }
+        if (fromVersion < 5 && persisted && typeof persisted === "object") {
+          // Default language is now English. If localStorage still contains
+          // one of our untouched built-in seed conversations, swap it to the
+          // English seed. User-edited conversations are left alone.
+          if (isKnownSeedState(persisted.systemPrompt, persisted.messages)) {
+            persisted.systemPrompt = DEFAULT_SYSTEM_PROMPT.en;
+            persisted.messages = seedMessagesFor("en");
+          }
         }
         return persisted;
       },

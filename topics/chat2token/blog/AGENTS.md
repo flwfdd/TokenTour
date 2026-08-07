@@ -68,6 +68,11 @@
 
 ## 更新日志（每次节点追加）
 
+### 2026-08-05 · English blog / language switch · 新增
+- 新增默认英文博客正文 `topics/chat2token/blog/en/index.astro`，默认路由为 `/chat2token/blog`；中文原文保留在 `/chat2token/blog/zh`，右上角 Header 通过 `langHref/langLabel` 手动切换。
+- `BpeLab` / `PrefixCacheLab` / `AttentionKvLab` / `MessageView` / `TemplateLab` 增加轻量 `lang` prop；中文默认不变，英文页传 `lang="en"` 后静态标签与脚本动态提示一起切换。
+- 英文翻译尽量保持中文正文的段落和交互位置对齐；本土化例子替换为通用英文语境（如 cheerful cat assistant / AcmeBot / generic provider），避免面向国际评审时出现语境断裂。
+
 ### 2026-06-01 · AttentionKvLab（因果注意力 × KV Cache）· 新建
 - 用户要求把「因果注意力掩码」和「对比有无 KV cache」**合并成一个**组件——确实更顺，因果下三角本身就是 KV Cache 省下东西的载体。
 - 形态：行=生成步 / 列=token 位置的下三角因果方格，并排「无缓存」「有缓存」两份；`下一步`/`重置`/`自动`（橙/青/绿 + lucide）。无缓存每步整片三角变橙、有缓存只对角线变橙 + 其余绿；计数严格对齐正文「三角形 O(n²) → 对角线 O(n)」。

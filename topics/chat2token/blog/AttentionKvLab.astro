@@ -11,82 +11,122 @@ interface Props {
   title?: string;
   /** Short sequence — one chip per token. Keep it small so the grid is readable. */
   tokens?: string[];
+  lang?: "zh" | "en";
 }
 
-const {
-  title = "因果注意力 × KV Cache",
-  // Real o200k tokenization of「语言的边界就是我世界的边界」.
-  tokens = ["语言", "的", "边", "界", "就是", "我", "世界", "的", "边", "界"],
-} = Astro.props;
-const n = tokens.length;
+const copy = {
+  zh: {
+    title: "因果注意力 × KV Cache",
+    tokens: ["语言", "的", "边", "界", "就是", "我", "世界", "的", "边", "界"],
+    reset: "重置",
+    step: "生成下一个 Token",
+    auto: "自动",
+    noCache: "无 KV Cache",
+    withCache: "有 KV Cache",
+    recompute: "累计重算",
+    newCompute: "累计新算",
+    times: "次",
+    triangle: "三角形",
+    diagonal: "对角线",
+    stepMeter: "本步",
+    calc: "本步计算（K/V）",
+    cached: "从缓存读取（复用）",
+    future: "还没生成",
+  },
+  en: {
+    title: "Causal attention × KV Cache",
+    tokens: ["The", "boundary", "of", "language", "is", "my", "world"],
+    reset: "Reset",
+    step: "Generate next Token",
+    auto: "Auto",
+    noCache: "Without KV Cache",
+    withCache: "With KV Cache",
+    recompute: "Cumulative recomputes",
+    newCompute: "Cumulative new computes",
+    times: "",
+    triangle: "Triangle",
+    diagonal: "Diagonal",
+    stepMeter: "This step",
+    calc: "Computed this step (K/V)",
+    cached: "Read from cache (reuse)",
+    future: "Not generated yet",
+  },
+} as const;
+
+const { title, tokens, lang = "zh" } = Astro.props;
+const c = copy[lang];
+const labTitle = title ?? c.title;
+const labTokens = tokens ?? [...c.tokens];
+const n = labTokens.length;
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 const gridHtml =
   `<span class="akv__corner" aria-hidden="true"></span>` +
-  tokens.map((t) => `<span class="akv__h akv__h--col">${esc(t)}</span>`).join("") +
-  tokens
+  labTokens.map((t) => `<span class="akv__h akv__h--col">${esc(t)}</span>`).join("") +
+  labTokens
     .map(
       (t, i) =>
         `<span class="akv__h akv__h--row" data-row="${i}">${esc(t)}</span>` +
-        tokens.map((_, j) => `<span class="akv__cell" data-i="${i}" data-j="${j}"></span>`).join(""),
+        labTokens.map((_, j) => `<span class="akv__cell" data-i="${i}" data-j="${j}"></span>`).join(""),
     )
     .join("");
 ---
 
-<div class="akv" data-akv data-akv-n={n}>
+<div class="akv" data-akv data-akv-lang={lang} data-akv-n={n}>
   <div class="akv__head">
-    <span class="akv__title">{title}</span>
+    <span class="akv__title">{labTitle}</span>
     <div class="akv__ctrl">
-      <button class="btn btn-warning akv__btn" type="button" data-akv-reset aria-label="重置">
+      <button class="btn btn-warning akv__btn" type="button" data-akv-reset aria-label={c.reset}>
         <RotateCcw size={15} strokeWidth={2.5} />
       </button>
-      <button class="btn btn-primary akv__btn" type="button" data-akv-step aria-label="生成下一个 Token">
+      <button class="btn btn-primary akv__btn" type="button" data-akv-step aria-label={c.step}>
         <ArrowRight size={15} strokeWidth={2.5} />
       </button>
       <button class="btn btn-success akv__btn" type="button" data-akv-auto aria-pressed="false">
         <Play class="akv__ic-play" size={15} strokeWidth={2.5} />
         <Pause class="akv__ic-pause" size={15} strokeWidth={2.5} />
-        <span>自动</span>
+        <span>{c.auto}</span>
       </button>
     </div>
   </div>
 
   <p class="akv__seq" data-akv-seq>
-    {tokens.map((t, i) => <span class="akv__seqtok" data-i={i}>{t}</span>)}
+    {labTokens.map((t, i) => <span class="akv__seqtok" data-i={i}>{t}</span>)}
   </p>
 
   <div class="akv__panels">
     <div class="akv__panel">
       <div class="akv__panel-head">
-        <span class="akv__panel-title">无 KV Cache</span>
-        <span class="akv__badge akv__badge--bad">累计重算 <b data-akv-bad-cum>0</b> 次</span>
+        <span class="akv__panel-title">{c.noCache}</span>
+        <span class="akv__badge akv__badge--bad">{c.recompute} <b data-akv-bad-cum>0</b> {c.times}</span>
       </div>
       <div class="akv__grid" data-akv-grid="nocache" style={`--n:${n}`} set:html={gridHtml} />
-      <div class="akv__meter">三角形 · ~O(n²)<span class="akv__meter-step">本步 <b data-akv-bad-step>1</b></span></div>
+      <div class="akv__meter">{c.triangle} · ~O(n²)<span class="akv__meter-step">{c.stepMeter} <b data-akv-bad-step>1</b></span></div>
     </div>
 
     <div class="akv__panel">
       <div class="akv__panel-head">
-        <span class="akv__panel-title">有 KV Cache</span>
-        <span class="akv__badge akv__badge--good">累计新算 <b data-akv-good-cum>0</b> 次</span>
+        <span class="akv__panel-title">{c.withCache}</span>
+        <span class="akv__badge akv__badge--good">{c.newCompute} <b data-akv-good-cum>0</b> {c.times}</span>
       </div>
       <div class="akv__grid" data-akv-grid="cache" style={`--n:${n}`} set:html={gridHtml} />
-      <div class="akv__meter">对角线 · ~O(n)<span class="akv__meter-step">本步 <b data-akv-good-step>1</b></span></div>
+      <div class="akv__meter">{c.diagonal} · ~O(n)<span class="akv__meter-step">{c.stepMeter} <b data-akv-good-step>1</b></span></div>
     </div>
   </div>
 
   <p class="akv__note" data-akv-note></p>
 
   <div class="akv__legend">
-    <span class="akv__key"><i class="akv__sw akv__sw--calc"></i>本步计算（K/V）</span>
-    <span class="akv__key"><i class="akv__sw akv__sw--cached"></i>从缓存读取（复用）</span>
-    <span class="akv__key"><i class="akv__sw akv__sw--future"></i>还没生成</span>
+    <span class="akv__key"><i class="akv__sw akv__sw--calc"></i>{c.calc}</span>
+    <span class="akv__key"><i class="akv__sw akv__sw--cached"></i>{c.cached}</span>
+    <span class="akv__key"><i class="akv__sw akv__sw--future"></i>{c.future}</span>
   </div>
 </div>
 
 <script>
   function initAkv(root: HTMLElement) {
+    const isEn = root.dataset.akvLang === "en";
     const n = Math.max(1, Number(root.dataset.akvN) || 6);
     const gridNo = root.querySelector<HTMLElement>('[data-akv-grid="nocache"]')!;
     const gridCa = root.querySelector<HTMLElement>('[data-akv-grid="cache"]')!;
@@ -141,14 +181,17 @@ const gridHtml =
       goodCum.textContent = String(t + 1);
 
       if (t === 0) {
-        noteEl.innerHTML =
-          `生成第 1 个 Token：两边都只算它自己。点 <b>下一步</b> 继续生成，看两种做法怎么分道扬镳。`;
+        noteEl.innerHTML = isEn
+          ? `Generating Token 1: both sides only compute the token itself. Click <b>Next</b> to continue and watch the two strategies diverge.`
+          : `生成第 1 个 Token：两边都只算它自己。点 <b>下一步</b> 继续生成，看两种做法怎么分道扬镳。`;
       } else if (t < n - 1) {
-        noteEl.innerHTML =
-          `生成第 <b>${t + 1}</b> 个 Token：<b>无缓存</b>把前面 <b>${t + 1}</b> 个 Token 的 K/V 全部重算（整行橙色）；<b>有缓存</b>只算新 Token 这一个（对角橙色），其余 <b>${t}</b> 个直接读缓存（绿色）。`;
+        noteEl.innerHTML = isEn
+          ? `Generating Token <b>${t + 1}</b>: <b>without cache</b>, the model recomputes K/V for all <b>${t + 1}</b> Tokens so far (the whole row turns orange); <b>with cache</b>, it computes only the new Token (orange diagonal) and reads the previous <b>${t}</b> from cache (green).`
+          : `生成第 <b>${t + 1}</b> 个 Token：<b>无缓存</b>把前面 <b>${t + 1}</b> 个 Token 的 K/V 全部重算（整行橙色）；<b>有缓存</b>只算新 Token 这一个（对角橙色），其余 <b>${t}</b> 个直接读缓存（绿色）。`;
       } else {
-        noteEl.innerHTML =
-          `生成完 <b>${n}</b> 个 Token：无缓存累计算了 <b>${tri(t)}</b> 次（整个三角形，~O(n²)）；有缓存只算了 <b>${t + 1}</b> 次（对角线，~O(n)）。这就是 KV Cache 省下的。`;
+        noteEl.innerHTML = isEn
+          ? `After <b>${n}</b> Tokens: without cache, the model computed <b>${tri(t)}</b> cells in total (the full triangle, ~O(n²)); with cache, it computed only <b>${t + 1}</b> cells (the diagonal, ~O(n)). That gap is what KV Cache saves.`
+          : `生成完 <b>${n}</b> 个 Token：无缓存累计算了 <b>${tri(t)}</b> 次（整个三角形，~O(n²)）；有缓存只算了 <b>${t + 1}</b> 次（对角线，~O(n)）。这就是 KV Cache 省下的。`;
       }
 
       stepBtn.disabled = t >= n - 1;

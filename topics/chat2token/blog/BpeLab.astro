@@ -10,7 +10,7 @@
 //
 // Caveat kept deliberately simple: we run BPE over the typed text as a single
 // "word" (no pretokenizer regex), which is exactly right for the single-word
-// examples here (momo, strawberry, 犇, …) and a fair simplification otherwise.
+// examples here (momo, strawberry, 中, …) and a fair simplification otherwise.
 import { RotateCcw, ArrowLeft, ArrowRight, Play, Pause } from "@lucide/astro";
 import "./bpe-lab.css";
 
@@ -20,18 +20,43 @@ interface Props {
   title?: string;
   /** Quick-fill example strings shown as buttons. */
   presets?: string[];
+  lang?: "zh" | "en";
 }
 
-const {
-  text,
-  title = "BPE 合并过程（GPT-OSS o200k）",
-  presets = ["momo", "strawberry", "犇", "🥳"],
-} = Astro.props;
+const copy = {
+  zh: {
+    title: "BPE 合并过程（GPT-OSS o200k）",
+    presets: ["momo", "strawberry", "中", "🥳"],
+    inputAria: "输入要分词的文本",
+    try: "试试",
+    reset: "重置",
+    prev: "上一步",
+    next: "下一步",
+    autoplay: "自动播放",
+    vocab: "相关词表",
+  },
+  en: {
+    title: "BPE merge process (GPT-OSS o200k)",
+    presets: ["momo", "strawberry", "tokenization", "中", "🥳"],
+    inputAria: "Text to tokenize",
+    try: "Try",
+    reset: "Reset",
+    prev: "Previous",
+    next: "Next",
+    autoplay: "Auto play",
+    vocab: "Relevant vocabulary",
+  },
+} as const;
+
+const { text, title, presets, lang = "zh" } = Astro.props;
+const c = copy[lang];
+const labTitle = title ?? c.title;
+const labPresets = presets ?? [...c.presets];
 ---
 
-<div class="bpe" data-bpe>
+<div class="bpe" data-bpe data-bpe-lang={lang}>
   <div class="bpe__head">
-    <span class="bpe__title">{title}</span>
+    <span class="bpe__title">{labTitle}</span>
     <span class="bpe__step" data-bpe-step></span>
   </div>
 
@@ -46,13 +71,13 @@ const {
           maxlength="32"
           spellcheck="false"
           autocomplete="off"
-          aria-label="输入要分词的文本"
+          aria-label={c.inputAria}
         />
       </div>
       <div class="bpe__presets">
-        <span class="bpe__presets-label">试试</span>
+        <span class="bpe__presets-label">{c.try}</span>
         {
-          presets.map((p) => (
+          labPresets.map((p) => (
             <button class="btn btn-ghost bpe__preset" type="button" data-bpe-preset={p}>
               {p}
             </button>
@@ -65,25 +90,25 @@ const {
       <p class="bpe__note" data-bpe-note></p>
 
       <div class="bpe__ctrls">
-        <button class="btn btn-warning bpe__btn" type="button" data-bpe-act="reset" aria-label="重置">
-          <RotateCcw size={15} strokeWidth={2.5} /> 重置
+        <button class="btn btn-warning bpe__btn" type="button" data-bpe-act="reset" aria-label={c.reset}>
+          <RotateCcw size={15} strokeWidth={2.5} /> {c.reset}
         </button>
-        <button class="btn btn-primary bpe__btn" type="button" data-bpe-act="prev" aria-label="上一步">
-          <ArrowLeft size={15} strokeWidth={2.5} /> 上一步
+        <button class="btn btn-primary bpe__btn" type="button" data-bpe-act="prev" aria-label={c.prev}>
+          <ArrowLeft size={15} strokeWidth={2.5} /> {c.prev}
         </button>
-        <button class="btn btn-primary bpe__btn" type="button" data-bpe-act="next" aria-label="下一步">
-          下一步 <ArrowRight size={15} strokeWidth={2.5} />
+        <button class="btn btn-primary bpe__btn" type="button" data-bpe-act="next" aria-label={c.next}>
+          {c.next} <ArrowRight size={15} strokeWidth={2.5} />
         </button>
         <button class="btn btn-success bpe__btn" type="button" data-bpe-act="play" aria-pressed="false">
           <Play class="bpe__ico bpe__ico--play" size={15} strokeWidth={2.5} />
           <Pause class="bpe__ico bpe__ico--pause" size={15} strokeWidth={2.5} />
-          <span data-bpe-playlabel>自动播放</span>
+          <span data-bpe-playlabel>{c.autoplay}</span>
         </button>
       </div>
     </div>
 
     <aside class="bpe__side">
-      <span class="bpe__vocab-label">相关词表<span class="bpe__vocab-count" data-bpe-vcount></span></span>
+      <span class="bpe__vocab-label">{c.vocab}<span class="bpe__vocab-count" data-bpe-vcount></span></span>
       <div class="bpe__vwrap">
         <div class="bpe__vlist" data-bpe-vlist></div>
       </div>
@@ -104,6 +129,21 @@ const {
   const hex = (b: number) => "\\x" + b.toString(16).toUpperCase().padStart(2, "0");
 
   async function initBpe(root: HTMLElement) {
+    const isEn = root.dataset.bpeLang === "en";
+    const txt = {
+      loading: isEn ? "Loading tokenizer…" : "正在加载分词器…",
+      doneOne: isEn ? "Merged into one Token; tokenization is complete" : "合并成一个 Token，分词结束",
+      doneMany: isEn ? "No adjacent Token pair can merge; tokenization is complete" : "相邻 Token 都无法再合并，分词结束",
+      emptyInput: isEn ? "Input is empty" : "输入为空",
+      typePrompt: isEn ? "Type text above" : "在上方输入文本",
+      noPairs: isEn ? "No mergeable adjacent pairs left" : "已无可合并的相邻对",
+      noVocab: isEn
+        ? "This text has no mergeable multi-byte tokens"
+        : "这段文本没有可合并的多字节 Token",
+      autoplay: isEn ? "Auto play" : "自动播放",
+      pause: isEn ? "Pause" : "暂停",
+      loadFailed: isEn ? "Tokenizer failed to load; check the network and refresh" : "分词器加载失败，请检查网络后刷新",
+    };
     const stage = root.querySelector<HTMLElement>("[data-bpe-stage]")!;
     const noteEl = root.querySelector<HTMLElement>("[data-bpe-note]")!;
     const stepEl = root.querySelector<HTMLElement>("[data-bpe-step]")!;
@@ -115,7 +155,7 @@ const {
 
     // Reverse map: a token's raw bytes (joined as "a,b,c") → its id/merge rank.
     let rev: Map<string, number> | null = null;
-    let steps: Step[] = [{ seq: [], cands: [], chosen: null, note: "正在加载分词器…" }];
+    let steps: Step[] = [{ seq: [], cands: [], chosen: null, note: txt.loading }];
     let last = 0;
     let cur = 0;
     let flash = -1;
@@ -205,7 +245,7 @@ const {
             seq: [...seq],
             cands: [],
             chosen: null,
-            note: seq.length <= 1 ? "合并成一个 Token，分词结束" : "相邻 Token 都无法再合并，分词结束",
+            note: seq.length <= 1 ? txt.doneOne : txt.doneMany,
           });
           break;
         }
@@ -216,11 +256,13 @@ const {
           seq: [...seq],
           cands,
           chosen: best.i,
-          note: `有 ${cands.length} 对可合并，取合并后 ID 最小的：${best.a.display} + ${best.b.display} → ${best.merged.display}（ID ${best.id}）`,
+          note: isEn
+            ? `${cands.length} mergeable pair${cands.length === 1 ? "" : "s"}; choose the lowest resulting ID: ${best.a.display} + ${best.b.display} → ${best.merged.display} (ID ${best.id})`
+            : `有 ${cands.length} 对可合并，取合并后 ID 最小的：${best.a.display} + ${best.b.display} → ${best.merged.display}（ID ${best.id}）`,
         });
         seq = [...seq.slice(0, best.i), best.merged, ...seq.slice(best.i + 2)];
       }
-      if (out.length === 0) out.push({ seq: [], cands: [], chosen: null, note: "输入为空" });
+      if (out.length === 0) out.push({ seq: [], cands: [], chosen: null, note: txt.emptyInput });
       return out;
     };
 
@@ -240,7 +282,7 @@ const {
                 `<b>${esc(u.display)}</b><i>${u.id}</i></span>`,
             )
             .join("")
-        : `<span class="bpe__vempty">这段文本没有可合并的多字节 Token</span>`;
+        : `<span class="bpe__vempty">${txt.noVocab}</span>`;
       vlist.querySelectorAll<HTMLElement>("[data-vtok]").forEach((el) => {
         const key = el.dataset.vtok ?? "";
         vchips.set(key, el);
@@ -269,12 +311,16 @@ const {
             )
             .join("")}</div>`
         : s.seq.length
-          ? `<div class="bpe__cands"><span class="badge badge-success">已无可合并的相邻对</span></div>`
+          ? `<div class="bpe__cands"><span class="badge badge-success">${txt.noPairs}</span></div>`
           : "";
 
-      stage.innerHTML = `<div class="bpe__seq">${toks || '<span class="bpe__empty">在上方输入文本</span>'}</div>${cands}`;
+      stage.innerHTML = `<div class="bpe__seq">${toks || `<span class="bpe__empty">${txt.typePrompt}</span>`}</div>${cands}`;
       noteEl.textContent = s.note;
-      stepEl.textContent = rev ? `第 ${cur + 1} / ${steps.length} 步 · ${s.seq.length} 个 Token` : "";
+      stepEl.textContent = rev
+        ? isEn
+          ? `Step ${cur + 1} / ${steps.length} · ${s.seq.length} Token${s.seq.length === 1 ? "" : "s"}`
+          : `第 ${cur + 1} / ${steps.length} 步 · ${s.seq.length} 个 Token`
+        : "";
       btn("prev").disabled = cur === 0;
       btn("next").disabled = cur === last;
       btn("reset").disabled = cur === 0;
@@ -340,13 +386,13 @@ const {
       if (timer) clearInterval(timer);
       timer = null;
       btn("play").setAttribute("aria-pressed", "false");
-      playLabel.textContent = "自动播放";
+      playLabel.textContent = txt.autoplay;
     };
     const play = () => {
       if (timer) return stopPlay();
       if (cur === last) cur = 0;
       btn("play").setAttribute("aria-pressed", "true");
-      playLabel.textContent = "暂停";
+      playLabel.textContent = txt.pause;
       timer = setInterval(() => {
         if (cur >= last) stopPlay();
         else next();
@@ -405,7 +451,7 @@ const {
       rev = map;
       rebuild();
     } catch {
-      steps = [{ seq: [], cands: [], chosen: null, note: "分词器加载失败，请检查网络后刷新" }];
+      steps = [{ seq: [], cands: [], chosen: null, note: txt.loadFailed }];
       last = 0;
       cur = 0;
       render();

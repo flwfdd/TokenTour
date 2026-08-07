@@ -1,5 +1,6 @@
 import type { TokenInfo, TokenSegment } from "./lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR, roleSurfaceStyle } from "./visual";
+import { SEG_ROLE_VAR, roleSurfaceStyle } from "./visual";
+import { segmentLabel, type Lang } from "./locale";
 
 /** Display order for the role chips. Zero-count chips are filtered out. */
 export const SEG_ORDER: TokenSegment[] = [
@@ -40,6 +41,7 @@ interface Props {
   onHoverChange: (seg: TokenSegment | null) => void;
   /** Optional prefix label like "角色:" rendered in muted color. */
   label?: string;
+  lang?: Lang;
 }
 
 /**
@@ -48,7 +50,7 @@ interface Props {
  * color + hover semantics, so hovering a chip lights up the same role
  * everywhere through the store's `hoverRole`.
  */
-export default function RoleLegend({ counts, hoverRole, onHoverChange, label }: Props) {
+export default function RoleLegend({ counts, hoverRole, onHoverChange, label, lang = "en" }: Props) {
   return (
     <div
       className="flex flex-wrap items-center gap-1 text-[11px]"
@@ -75,7 +77,7 @@ export default function RoleLegend({ counts, hoverRole, onHoverChange, label }: 
               className="inline-block h-2 w-2 rounded-sm"
               style={{ backgroundColor: `var(${SEG_ROLE_VAR[seg]})` }}
             />
-            {SEG_LABEL[seg]} · {n}
+            {segmentLabel(lang, seg)} · {n}
           </button>
         );
       })}

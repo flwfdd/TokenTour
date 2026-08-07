@@ -13,7 +13,9 @@ import {
 } from "./lib/tokenizer";
 import { useTokenizerLoadedVersions } from "./useTokenizerLoad";
 import type { TokenInfo } from "./lib/types";
-import { SEG_LABEL, SEG_ROLE_VAR, matchesHover, withinMessageFraction, roleSurfaceStyle } from "./visual";
+import { SEG_ROLE_VAR, matchesHover, withinMessageFraction, roleSurfaceStyle } from "./visual";
+import { useLang } from "./i18n";
+import { segmentLabel, type Lang } from "./locale";
 
 const TOK_LABEL_SHORT: Record<string, string> = {
   cl100k: "GPT-4",
@@ -31,7 +33,42 @@ const BADGE_SM: React.CSSProperties = {
   letterSpacing: 0,
 };
 
+const tokensCopy = {
+  en: {
+    selectTitle:
+      "Choose how to tokenize the chat template. Auto matches the current template family; built-in tiktoken is a general approximation; HF tokenizers load from /public/tokenizers/ first, then fall back to hf-mirror.com.",
+    compareTitle: "Choose a comparison tokenizer and split the same chat-template text side by side.",
+    compare: "Compare…",
+    hoverHint: "Hover a token to inspect its id, byte length, and other details",
+    builtIn: "tiktoken (built-in)",
+    hf: "HF · local first / hf-mirror fallback",
+    vocab: "vocab",
+    loading: "loading…",
+    empty: "No tokens yet. Type a message on the left and send it, or click Demo.",
+    bytes: "bytes",
+    chars: "characters",
+    special: "special",
+  },
+  zh: {
+    selectTitle:
+      "决定如何把 chat template 切成 token。auto 自动匹配当前模板家族；内置 tiktoken 是通用近似；HF 选项从 /public/tokenizers/ 优先读本地，缺失时回退 hf-mirror.com。",
+    compareTitle: "选一个对比用的 tokenizer，把同一份 chat template 文本并排切出来",
+    compare: "对比…",
+    hoverHint: "悬停一个 token 查看 id / 字节数等信息",
+    builtIn: "tiktoken (内置)",
+    hf: "HF · 本地优先 / hf-mirror 回退",
+    vocab: "词表",
+    loading: "加载中…",
+    empty: "还没有 token。在左侧输入消息并发送，或点演示按钮。",
+    bytes: "字节",
+    chars: "字符",
+    special: "special",
+  },
+} as const;
+
 export default function LensTokens() {
+  const lang = useLang();
+  const copy = tokensCopy[lang];
   const view = useLensView();
   const hoverTokenIndex = useConversation((s) => s.hoverTokenIndex);
   const hoverRole = useConversation((s) => s.hoverRole);
@@ -116,13 +153,15 @@ export default function LensTokens() {
             value={tokenizerKey ?? ""}
             onChange={(k) => setTokenizerKey(k)}
             defaultLabel={`auto · ${TOK_LABEL_SHORT[defaultTokenizerKey(view.family)] ?? defaultTokenizerKey(view.family)}`}
-            title="决定如何把 chat template 切成 token。auto 自动匹配当前模板家族；内置 tiktoken 是通用近似；HF 选项从 /public/tokenizers/ 优先读本地，缺失时回退 hf-mirror.com。"
+            title={copy.selectTitle}
+            lang={lang}
           />
           <TokenizerSelect
             value={compareKey ?? ""}
             onChange={setCompareKey}
-            defaultLabel="对比…"
-            title="选一个对比用的 tokenizer，把同一份 chat template 文本并排切出来"
+            defaultLabel={copy.compare}
+            title={copy.compareTitle}
+            lang={lang}
           />
         </>
       }
@@ -137,11 +176,11 @@ export default function LensTokens() {
           null;
         return t ? (
           <div className="flex min-h-[2rem] items-center px-3 font-mono">
-            <TokenDetail t={t} />
+            <TokenDetail t={t} lang={lang} />
           </div>
         ) : (
           <div className="flex min-h-[2rem] items-center px-3 text-[10px] text-(--color-muted)">
-            悬停一个 token 查看 id / 字节数等信息
+            {copy.hoverHint}
           </div>
         );
       })()}
@@ -178,6 +217,7 @@ export default function LensTokens() {
           pending={tokIsHfPending}
           dividerRight={!!compareTokens}
           empty={!compareTokens && view.tokens.length === 0}
+          lang={lang}
         />
         {compareTokens && (
           <TokenList
@@ -198,6 +238,7 @@ export default function LensTokens() {
             onSubEnter={() => setActiveSub("compare")}
             vocabSize={compareTokenizer!.vocabSize}
             pending={compareIsHfPending}
+            lang={lang}
           />
         )}
       </div>
@@ -210,12 +251,15 @@ function TokenizerSelect({
   onChange,
   defaultLabel,
   title,
+  lang,
 }: {
   value: string;
   onChange: (v: string | null) => void;
   defaultLabel: string;
   title?: string;
+  lang: Lang;
 }) {
+  const copy = tokensCopy[lang];
   return (
     <select
       value={value}
@@ -224,14 +268,14 @@ function TokenizerSelect({
       title={title}
     >
       <option value="">{defaultLabel}</option>
-      <optgroup label="tiktoken (内置)">
+      <optgroup label={copy.builtIn}>
         {listTokenizers().map((t) => (
           <option key={t.key} value={t.key}>
             {t.label}
           </option>
         ))}
       </optgroup>
-      <optgroup label="HF · 本地优先 / hf-mirror 回退">
+      <optgroup label={copy.hf}>
         {listHfTokenizers().map((t) => (
           <option key={t.key} value={t.key}>
             {t.label}
@@ -255,6 +299,7 @@ const TokenList = forwardRef<HTMLDivElement, {
   pending?: boolean;
   dividerRight?: boolean;
   empty?: boolean;
+  lang: Lang;
 }>(function TokenList(
   {
     tokens,
@@ -269,9 +314,11 @@ const TokenList = forwardRef<HTMLDivElement, {
     pending,
     dividerRight,
     empty,
+    lang,
   },
   ref,
 ) {
+  const copy = tokensCopy[lang];
   return (
     <div
       onMouseEnter={onSubEnter}
@@ -283,14 +330,14 @@ const TokenList = forwardRef<HTMLDivElement, {
       }
     >
       <div className="flex-none px-3 py-1 text-[11px] text-(--color-ink-soft)">
-        {label} · {tokens.length.toLocaleString()} tok · 词表{" "}
+        {label} · {tokens.length.toLocaleString()} tok · {copy.vocab}{" "}
         {vocabSize?.toLocaleString() ?? "—"}
-        {pending ? " · 加载中…" : ""}
+        {pending ? ` · ${copy.loading}` : ""}
       </div>
       <div ref={ref} className="flex-1 min-h-0 overflow-auto p-3 leading-[1.6rem]">
         {empty ? (
         <div className="grid h-full place-items-center text-xs text-(--color-muted)">
-          还没有 token。在左侧输入消息并发送，或点 Demo 按钮。
+          {copy.empty}
         </div>
       ) : (
         tokens.map((t) => (
@@ -352,7 +399,8 @@ function TokenChip({
   );
 }
 
-function TokenDetail({ t }: { t: TokenInfo }) {
+function TokenDetail({ t, lang }: { t: TokenInfo; lang: Lang }) {
+  const copy = tokensCopy[lang];
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="badge" style={BADGE_SM}>id={t.id}</span>
@@ -361,13 +409,12 @@ function TokenDetail({ t }: { t: TokenInfo }) {
         className="badge"
         style={{ ...BADGE_SM, ...roleSurfaceStyle(t.segment, { border: true }), color: `var(${SEG_ROLE_VAR[t.segment]})` }}
       >
-        {SEG_LABEL[t.segment]}
+        {segmentLabel(lang, t.segment)}
       </span>
-      {t.isSpecial && <span className="badge" style={BADGE_SM}>special</span>}
+      {t.isSpecial && <span className="badge" style={BADGE_SM}>{copy.special}</span>}
       <span className="text-[10px] text-(--color-muted)">
-        {t.byteLen ?? new TextEncoder().encode(t.text).length} 字节 · {t.charLen} 字符
+        {t.byteLen ?? new TextEncoder().encode(t.text).length} {copy.bytes} · {t.charLen} {copy.chars}
       </span>
     </div>
   );
 }
-

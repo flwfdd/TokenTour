@@ -3,12 +3,13 @@ import "~/styles/global.css";
 
 interface Props {
   title?: string;
+  lang?: string;
 }
-const { title = "TokenTour · 从 Agentic Context 到 KV Cache" } = Astro.props;
+const { title = "TokenTour · From Agentic Context to KV Cache", lang = "en" } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="zh-CN">
+<html lang={lang}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />

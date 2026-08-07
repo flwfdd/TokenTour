@@ -3,9 +3,29 @@ import { X } from "lucide-react";
 import { useConversation, getActiveTools, buildOutgoingMessages } from "./store";
 import { buildOpenAiRequestBody } from "./lib/providers/serialize";
 import CodeBlock from "./CodeBlock";
+import { useLang } from "./i18n";
+
+const modalCopy = {
+  en: {
+    title: "Request body sent to the provider",
+    subtitle: "The payload the agent actually POSTs to the provider: messages, tools, and sampling parameters",
+    close: "Close",
+    closeTitle: "Close (Esc)",
+    lines: (n: number) => `${n} lines`,
+  },
+  zh: {
+    title: "发送给 Provider 的请求体",
+    subtitle: "Agent 真正 POST 给 provider 的 payload —— messages、tools 与采样参数",
+    close: "关闭",
+    closeTitle: "关闭 (Esc)",
+    lines: (n: number) => `${n} 行`,
+  },
+} as const;
 
 export default function MessagesJsonModal() {
   const state = useConversation();
+  const lang = useLang();
+  const copy = modalCopy[lang];
   const open = state.messagesModalOpen;
 
   useEffect(() => {
@@ -48,16 +68,16 @@ export default function MessagesJsonModal() {
       >
         <header className="flex items-start justify-between gap-4 px-5 pt-4 pb-3">
           <div className="min-w-0">
-            <div className="text-sm font-semibold">发送给 Provider 的请求体</div>
+            <div className="text-sm font-semibold">{copy.title}</div>
             <div className="mt-0.5 text-[11px] leading-relaxed text-(--color-muted)">
-              Agent 真正 POST 给 provider 的 payload —— messages、tools 与采样参数
+              {copy.subtitle}
             </div>
           </div>
           <button
             className="-mr-1 -mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg text-(--color-muted) hover:bg-(--color-bg) hover:text-(--color-fg)"
             onClick={() => state.setMessagesModalOpen(false)}
-            aria-label="关闭"
-            title="关闭 (Esc)"
+            aria-label={copy.close}
+            title={copy.closeTitle}
           >
             <X size={16} strokeWidth={2} />
           </button>
@@ -67,7 +87,7 @@ export default function MessagesJsonModal() {
           <CodeBlock
             code={json}
             lang="json"
-            title={`POST /chat/completions · ${lineCount} 行`}
+            title={`POST /chat/completions · ${copy.lines(lineCount)}`}
             className="flex-1"
           />
         </div>

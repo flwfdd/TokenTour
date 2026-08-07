@@ -24,8 +24,10 @@ interface Props {
   code: string;
   /** Label shown in the JSON code block's title bar. */
   title?: string;
+  lang?: "zh" | "en";
 }
-const { code, title = "messages" } = Astro.props;
+const { code, title = "messages", lang = "zh" } = Astro.props;
+const tabsLabel = lang === "en" ? "Message views" : "消息视图";
 
 type AnyMsg = Record<string, any>;
 const ROLE_SET = new Set(["system", "user", "assistant", "tool"]);
@@ -207,7 +209,7 @@ const segOf = (r: string) => (ROLE_SET.has(r) ? r : undefined);
 <div class="msg-view">
   {
     canChat ? (
-      <Tabs labels={["Chat", "Messages", "JSON"]} label="消息视图">
+      <Tabs labels={["Chat", "Messages", "JSON"]} label={tabsLabel}>
         {/* ── Chat (HuggingFace chat-ui style) ─────────────────────── */}
         <Fragment slot="0">
           {toolNames.length > 0 && (

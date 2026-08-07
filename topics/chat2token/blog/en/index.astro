@@ -1,0 +1,872 @@
+---
+// chat2token — English long-form article.
+//
+// This file mirrors `topics/chat2token/blog/zh/index.astro` structurally: same
+// section order, same interactive labs, but with internationalized prose and
+// less local examples for the VisXAI-facing default language.
+import CodeBlock from "~/components/CodeBlock.astro";
+import ChatTemplate from "~/components/ChatTemplate.astro";
+import LineRef from "~/components/LineRef.astro";
+import Callout from "~/components/Callout.astro";
+import PlaygroundCta from "../zh/PlaygroundCta.astro";
+import PlaygroundTry from "../zh/PlaygroundTry.astro";
+import MessageView from "../MessageView.astro";
+import TemplateLab from "../TemplateLab.astro";
+import BpeLab from "../BpeLab.astro";
+import PrefixCacheLab from "../PrefixCacheLab.astro";
+import AttentionKvLab from "../AttentionKvLab.astro";
+
+// ── Code / template examples ───────────────────────────────────────────────
+
+const msgBasic = `[
+  {
+    "role": "system",
+    "content": "You are a cheerful cat assistant."
+  },
+  {
+    "role": "user",
+    "content": "Who are you?"
+  },
+  {
+    "role": "assistant",
+    "content": "I'm a cheerful cat assistant. Meow."
+  }
+]`;
+
+const msgBasicFull = `[
+  {
+    "role": "system",
+    "content": "You are a cheerful cat assistant."
+  },
+  {
+    "role": "user",
+    "content": "Who are you?"
+  },
+  {
+    "role": "assistant",
+    "reasoning_content": "The user asks who I am. I should follow the system instruction and answer briefly.",
+    "content": "I'm a cheerful cat assistant. Meow."
+  }
+]`;
+
+const msgReasoning = `{
+  "role": "assistant",
+  "content": "I'm a cheerful cat assistant. Meow.",
+  "reasoning_content": "The user asks who I am. I should follow the system instruction and answer briefly."
+}`;
+
+const msgToolEarly = `[
+  {
+    "role": "system", // Agree with the model on a tool-call format.
+    "content": "When you need to add numbers, output \`add(a, b)\`, where a and b are numbers."
+  },
+  {
+    "role": "user", // User asks a question.
+    "content": "1 + 1 = ?"
+  },
+  {
+    "role": "assistant", // The model calls a tool in plain text.
+    "content": "add(1, 1)"
+  },
+  {
+    "role": "user", // The system detects the call, runs the tool, and packages the result as a user message.
+    "content": "add(1, 1) = 2"
+  },
+  {
+    "role": "assistant", // The model answers.
+    "content": "2"
+  }
+]`;
+
+const reqTools = `{
+  "messages": [
+    {
+      "role": "user",
+      "content": "1 + 1 = ?"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "add",
+        "description": "Calculate the sum of two numbers",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          },
+          "required": ["a", "b"]
+        }
+      }
+    }
+  ]
+}`;
+
+const toolCall = `{
+  "role": "assistant",
+  "tool_calls": [
+    {
+      "id": "tool_call_id_1",
+      "type": "function",
+      "function": {
+        "name": "add",
+        "arguments": { "a": 1, "b": 1 }
+      }
+    }
+  ]
+}`;
+
+const toolMsg = `{
+  "role": "tool",
+  "content": "2",
+  "tool_call_id": "tool_call_id_1"
+}`;
+
+const msgComprehensive = `{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a cheerful cat assistant."
+    },
+    {
+      "role": "user",
+      "content": "What is today's year × month × day?"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "type": "function",
+          "id": "tool_call_id_1",
+          "function": {
+            "name": "current_time",
+            "arguments": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "2026-05-30T18:51:09+08:00",
+      "name": "current_time",
+      "tool_call_id": "tool_call_id_1"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "type": "function",
+          "id": "tool_call_id_2",
+          "function": {
+            "name": "calculator",
+            "arguments": "{\\"expression\\":\\"2026 * 5 * 30\\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "303900",
+      "name": "calculator",
+      "tool_call_id": "tool_call_id_2"
+    },
+    {
+      "role": "assistant",
+      "content": "The date is 2026-05-30, so year × month × day = 2026 * 5 * 30 = 303900."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "calculator",
+        "description": "Evaluate a basic arithmetic expression. Supports + - * / ( ) and decimal numbers. Returns the numeric result as a string.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "type": "string",
+              "description": "A pure arithmetic expression, e.g. '12 * (3 + 4) / 2'"
+            }
+          },
+          "required": [
+            "expression"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "current_time",
+        "description": "Get the current local date and time in ISO 8601 (with timezone offset).",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    }
+  ]
+}`;
+
+const tmplBasicDeepseek = `<｜begin▁of▁sentence｜>
+You are a cheerful cat assistant.<｜User｜>Who are you?<｜Assistant｜>            I'm a cheerful cat assistant. Meow.<｜end▁of▁sentence｜>`;
+
+const tmplBasicQwen = `<|im_start|>system
+You are a cheerful cat assistant.<|im_end|>
+<|im_start|>user
+Who are you?<|im_end|>
+<|im_start|>assistant
+<think>
+The user asks who I am. I should follow the system instruction and answer briefly.
+</think>
+
+I'm a cheerful cat assistant. Meow.<|im_end|>`;
+
+const tmplBasicGptoss = `<|start|>system<|message|>You are ChatGPT, a large language model trained by OpenAI.
+Knowledge cutoff: 2024-06
+Current date: 2026-05-30
+
+Reasoning: medium
+
+# Valid channels: analysis, commentary, final. Channel must be included for every message.<|end|><|start|>developer<|message|># Instructions
+
+You are a cheerful cat assistant.
+
+<|end|><|start|>user<|message|>Who are you?<|end|><|start|>assistant<|channel|>analysis<|message|>The user asks who I am. I should follow the system instruction and answer briefly.<|end|><|start|>assistant<|channel|>final<|message|>I'm a cheerful cat assistant. Meow.<|return|>`;
+
+const qwenInputOnly = `<|im_start|>system
+You are a cheerful cat assistant.<|im_end|>
+<|im_start|>user
+Who are you?<|im_end|>
+<|im_start|>assistant
+<think>`;
+
+const qwenModelOutput = `The user asks who I am. I should follow the system instruction and answer briefly.
+</think>
+
+I'm a cheerful cat assistant. Meow.<|im_end|>`;
+
+const qwenThinkClosed = `<|im_start|>system
+You are a cheerful cat assistant.<|im_end|>
+<|im_start|>user
+Who are you?<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>`;
+
+const tmplToolDeepseek = `<｜begin▁of▁sentence｜>
+You are a cheerful cat assistant.    
+
+# Tools
+
+You may call one or more functions to assist with the user query.
+{"type": "function", "function": {"name": "calculator", "description": "Evaluate a basic arithmetic expression. Supports + - * / ( ) and decimal numbers. Returns the numeric result as a string.", "parameters": {"type": "object", "properties": {"expression": {"type": "string", "description": "A pure arithmetic expression, e.g. '12 * (3 + 4) / 2'"}}, "required": ["expression"]}}}
+{"type": "function", "function": {"name": "current_time", "description": "Get the current local date and time in ISO 8601 (with timezone offset).", "parameters": {"type": "object", "properties": {}, "required": []}}}    
+</tools>
+
+
+
+    For function call returns, you should first print <｜tool▁calls▁begin｜>
+
+    For each function call, you should return object like:
+
+    <｜tool▁call▁begin｜>function<｜tool▁sep｜><function_name>
+\`\`\`json
+<function_arguments_in_json_format>
+\`\`\`<｜tool▁call▁end｜>
+
+    At the end of function call returns, you should print <｜tool▁calls▁end｜><｜end▁of▁sentence｜><｜User｜>What is today's year × month × day?<｜Assistant｜>                    <｜tool▁calls▁begin｜><｜tool▁call▁begin｜>function<｜tool▁sep｜>current_time
+\`\`\`json
+"{}"
+\`\`\`<｜tool▁call▁end｜>        <｜tool▁calls▁end｜><｜end▁of▁sentence｜>            <｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>2026-05-30T18:51:09+08:00<｜tool▁output▁end｜>            <｜tool▁outputs▁end｜>                    <｜tool▁calls▁begin｜><｜tool▁call▁begin｜>function<｜tool▁sep｜>calculator
+\`\`\`json
+"{\\"expression\\":\\"2026 * 5 * 30\\"}"
+\`\`\`<｜tool▁call▁end｜>        <｜tool▁calls▁end｜><｜end▁of▁sentence｜>            <｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>303900<｜tool▁output▁end｜>            <｜tool▁outputs▁end｜>The date is 2026-05-30, so year × month × day = 2026 * 5 * 30 = 303900.<｜end▁of▁sentence｜>`;
+
+const tmplToolQwen = `<|im_start|>system
+You are a cheerful cat assistant.
+
+# Tools
+
+You may call one or more functions to assist with the user query.
+
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{"type": "function", "function": {"name": "calculator", "description": "Evaluate a basic arithmetic expression. Supports + - * / ( ) and decimal numbers. Returns the numeric result as a string.", "parameters": {"type": "object", "properties": {"expression": {"type": "string", "description": "A pure arithmetic expression, e.g. '12 * (3 + 4) / 2'"}}, "required": ["expression"]}}}
+{"type": "function", "function": {"name": "current_time", "description": "Get the current local date and time in ISO 8601 (with timezone offset).", "parameters": {"type": "object", "properties": {}, "required": []}}}
+</tools>
+
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": <function-name>, "arguments": <args-json-object>}
+</tool_call><|im_end|>
+<|im_start|>user
+What is today's year × month × day?<|im_end|>
+<|im_start|>assistant
+<think>
+The user wants the product of the current year, month, and day. I do not know today's date from reasoning alone, so I should call current_time first and multiply afterward.
+</think>
+
+<tool_call>
+{"name": "current_time", "arguments": {}}
+</tool_call><|im_end|>
+<|im_start|>user
+<tool_response>
+2026-05-30T18:51:09+08:00
+</tool_response><|im_end|>
+<|im_start|>assistant
+<think>
+current_time returned 2026-05-30T18:51:09+08:00, so the date is 2026-05-30. The product is 2026 * 5 * 30. I can calculate it, but using the calculator tool keeps the example explicit.
+</think>
+
+<tool_call>
+{"name": "calculator", "arguments": {"expression": "2026 * 5 * 30"}}
+</tool_call><|im_end|>
+<|im_start|>user
+<tool_response>
+303900
+</tool_response><|im_end|>
+<|im_start|>assistant
+<think>
+The calculator returned 303900. Now answer naturally and include the date as context.
+</think>
+
+The date is 2026-05-30, so year × month × day = 2026 * 5 * 30 = 303900.<|im_end|>`;
+
+const tmplToolGptoss = `<|start|>system<|message|>You are ChatGPT, a large language model trained by OpenAI.
+Knowledge cutoff: 2024-06
+Current date: 2026-05-30
+
+Reasoning: medium
+
+# Valid channels: analysis, commentary, final. Channel must be included for every message.
+Calls to these tools must go to the commentary channel: 'functions'.<|end|><|start|>developer<|message|># Instructions
+
+You are a cheerful cat assistant.
+
+# Tools
+
+## functions
+
+namespace functions {
+
+// Evaluate a basic arithmetic expression. Supports + - * / ( ) and decimal numbers. Returns the numeric result as a string.
+type calculator = (_: {
+// A pure arithmetic expression, e.g. '12 * (3 + 4) / 2'
+expression: string,
+}) => any;
+
+// Get the current local date and time in ISO 8601 (with timezone offset).
+type current_time = () => any;
+
+} // namespace functions<|end|><|start|>user<|message|>What is today's year × month × day?<|end|><|start|>assistant to=functions.current_time<|channel|>commentary json<|message|>{}<|call|><|start|>functions.current_time to=assistant<|channel|>commentary<|message|>"2026-05-30T18:51:09+08:00"<|end|><|start|>assistant to=functions.calculator<|channel|>commentary json<|message|>{"expression": "2026 * 5 * 30"}<|call|><|start|>functions.calculator to=assistant<|channel|>commentary<|message|>"303900"<|end|><|start|>assistant<|channel|>analysis<|message|>The calculator returned 303900. Now answer naturally and include the date as context.<|end|><|start|>assistant<|channel|>final<|message|>The date is 2026-05-30, so year × month × day = 2026 * 5 * 30 = 303900.<|return|>`;
+
+const toolCallSnippet = `<tool_call>
+{"name": "calculator", "arguments": {"expression": "2026 * 5 * 30"}}
+</tool_call>`;
+
+---
+
+<article class="prose">
+  <p class="lede">
+    When you chat with an AI—or tell an agent what to do—what actually happens underneath the input box?
+    How do your conversation history, tools, and instructions turn into Tokens?
+  </p>
+
+  <p>
+    TokenTour is a series of interactive articles, videos, and experiments about large language models and agents.
+    In this first stop, we will look at how one sentence from you becomes something a model can process.
+  </p>
+
+  <p>
+    In this article, we will move top-down through Context, Messages, Chat Templates, Tokens, and KV Cache,
+    using interactive visualizations to make each layer visible.
+  </p>
+
+  <p>
+    The first thing to know is that a large language model only does one thing: next-token prediction.
+    In plain language, it plays autocomplete. Given “1 + 1 =”, it predicts “2”.
+    For now, we do not need to know how the prediction is computed—that is for later stops in the series.
+    Treat the model as a black box: text goes in, the next piece of text comes out.
+  </p>
+
+  <p>
+    It has no memory in the human sense, cannot “see” a chat window, and cannot output a whole paragraph all at once.
+    It emits one token, appends that token to everything before it, reads the combined text again, and predicts the next token.
+  </p>
+
+  <p>
+    There is no magic hiding under the agent stack. Modern agents can feel nearly omnipotent, but the whole tower is
+    built on top of this autocomplete game. You may already have questions—and if not, the questions below are a good
+    stress test. By the end, they should feel much less mysterious.
+  </p>
+
+  <PlaygroundCta title="Interactive playground" label="Open Playground">
+    This article comes with a browser playground: chat freely with a small agent on the left, while the right side
+    shows four synchronized lenses—Messages, Chat Template, Tokens, and Context × KV Cache. Colors and hover highlights
+    are linked across panels, so it is worth keeping open while you read.
+  </PlaygroundCta>
+
+  <h2>Messages</h2>
+
+  <Callout type="primary" title="Questions to keep in mind">
+    <ul>
+      <li>What is the difference between Context, Messages, and a Prompt?</li>
+      <li>How does a model’s “memory” work?</li>
+      <li>How does the model know which tools exist, and how does it call them?</li>
+    </ul>
+  </Callout>
+
+  <p>
+    In a chat UI, you see your messages and the AI’s replies. Sometimes you also see the model’s reasoning or tool calls.
+    From the model’s point of view, how are all of these pieces organized?
+  </p>
+
+  <p>
+    The answer is close to what you see: everything is represented as a message list, usually in JSON.
+    Each message has a role, content, and optional extra fields such as reasoning or tool-call data.
+  </p>
+
+  <p>There are usually four roles:</p>
+  <ul>
+    <li>
+      <code>system</code>: a system message. There is usually zero or one, set by the developer, used to define the
+      model’s persona, behavior preferences, and high-level rules.
+    </li>
+    <li>
+      <code>user</code>: a user message. It represents what the user sent, and it may also contain extra information
+      injected by the system, such as RAG results.
+    </li>
+    <li>
+      <code>assistant</code>: an AI message generated by the model, including replies, reasoning, and tool calls.
+    </li>
+    <li>
+      <code>tool</code>: a tool message generated by the surrounding system, used to pass tool results back to the model.
+    </li>
+  </ul>
+
+  <p>
+    Content is plain text. The content of system and user messages is usually written by people, and that is what we
+    commonly call the prompt.
+  </p>
+
+  <p>A typical message list might look like this. Switch to “Chat” to see how it renders as a conversation:</p>
+  <MessageView code={msgBasic} title="messages" lang="en" />
+
+  <p>
+    For simplicity, this example leaves out tools and reasoning. In most chat systems, the system prompt is the first
+    <code>system</code> message and is hidden from the user. The model is supposed to follow it, but model outputs are
+    probabilistic, so the model can still drift. For example, even if the system prompt says “do not role-play as a
+    pirate,” a later user may pressure the model hard enough that it starts slipping into pirate voice. Similarly,
+    asking “what model are you?” is often not a reliable way to identify the backend. If the system prompt says the
+    assistant is “AcmeBot,” it may say it is AcmeBot even when the underlying provider is something else.
+  </p>
+
+  <p>
+    At the start, there is only the system message. After you send “Who are you?”, the system packages your text as a
+    user message, appends it to the list, and calls the model API. The model generates text, the system packages that
+    text as an assistant message, and appends it too. Every new turn repeats the same loop. So the model does not have
+    “memory” by itself; it simply receives the message list every time. The list records the conversation history, so it
+    behaves as if the model remembered. Everything the model can see is collectively called the context.
+  </p>
+
+  <p>For reasoning models, an assistant message may include a reasoning field, commonly separate from the final answer:</p>
+  <CodeBlock code={msgReasoning} lang="json" title="assistant message" highlight={[4]} />
+
+  <p>
+    Tool calls add another layer. Two problems need to be solved: how to tell the model which tools exist, and how to
+    let the model request a tool call. Suppose we have an addition calculator that takes two numbers and returns their
+    sum. How does the model learn the tool exists, and how does it ask to use it? There must be an explicit convention,
+    because the model only deals in text.
+  </p>
+
+  <p>
+    Early systems did not have native tool messages or structured tool-call fields. People used carefully designed
+    prompts plus system-side parsing. For example:
+  </p>
+  <CodeBlock code={msgToolEarly} lang="json" title="early tool-call convention" id="code-msg-tool-early" />
+
+  <p>
+    Here, the <LineRef target="code-msg-tool-early" lines="14-17">second user message</LineRef> is actually produced by
+    the system. It detected that the model followed the agreed <code>add(a, b)</code> format, extracted
+    <code>1</code> and <code>1</code>, ran the tool, got <code>2</code>, and packaged that result back into the message
+    list. This worked, but it was awkward and brittle. Modern APIs make it cleaner, while the underlying idea is the
+    same: define a format the model can learn to emit. When calling the model API, we can include a <code>tools</code>
+    field alongside <code>messages</code>:
+  </p>
+  <CodeBlock code={reqTools} lang="json" title="request body (with tools)" highlight={[8]} />
+
+  <p>
+    Here we declare a tool named <code>add</code>. It accepts two numbers and returns their sum. If the model wants to
+    use it, the assistant message can contain a structured tool call:
+  </p>
+  <CodeBlock code={toolCall} lang="json" title="assistant tool_calls" highlight={[3]} />
+
+  <p>
+    The system detects that tool call, invokes the tool, receives <code>2</code>, and packages the result as a
+    <code>tool</code> message. Because multiple tools may be called at once, the result is linked back with
+    <code>tool_call_id</code>:
+  </p>
+  <CodeBlock code={toolMsg} lang="json" title="tool message" highlight={[4]} />
+
+  <p>
+    Then the system calls the model again with the updated message list. If the model asks for another tool, the loop
+    continues. When it stops calling tools, the model returns the final answer. This is the core of many agents: a loop
+    of reasoning and action, much like the pattern described in Shunyu Yao’s
+    <a href="https://arxiv.org/abs/2210.03629">ReAct</a> paper.
+  </p>
+
+  <p>Now let’s look at a more complete example:</p>
+  <MessageView code={msgComprehensive} title="comprehensive example: multi-step tool calls" lang="en" />
+
+  <p>
+    First the model calls <code>current_time</code> to get the date, then calls <code>calculator</code> with that date,
+    receives <code>303900</code>, and finally produces a normal answer without more tool calls.
+  </p>
+
+  <p>
+    Whether the product is ChatGPT, Claude Code, or another agent system, a lot of the work comes down to assembling and
+    reassembling this message list. The exact engineering varies, but the shape is surprisingly consistent.
+  </p>
+
+  <Callout type="accent" title="Try it · Messages panel">
+    <p>
+      In the playground, open “View Messages JSON” to see the current conversation as a full message list. Edit any
+      message, and the downstream Chat Template, Tokens, and KV Cache panels update immediately.
+    </p>
+    <PlaygroundTry label="Open the playground" />
+  </Callout>
+
+  <h2>Chat Template</h2>
+
+  <Callout type="primary" title="Questions to keep in mind">
+    <ul>
+      <li>How do structured Messages become one long plain-text string the model can read?</li>
+      <li>What is the difference between a System Prompt and an ordinary User Prompt?</li>
+      <li>How does the model distinguish user text from assistant text?</li>
+      <li>How is a model’s reasoning mode implemented?</li>
+    </ul>
+  </Callout>
+
+  <p>
+    The model cannot directly understand a JSON message list. It only understands text. So we need to turn the message
+    list into plain text. This is where the Chat Template enters.
+  </p>
+
+  <p>
+    A Chat Template is a formatting template. Apply it to the message list, and it concatenates everything into a single
+    long string in the format that a given model family expects. In the module below, the left side is the message list
+    and the right side is the rendered text after applying different templates. Switch model families to compare them.
+    Hover any role block, message card, or legend chip to link the corresponding parts across both sides; click a legend
+    chip to pin it.
+  </p>
+  <TemplateLab
+    lang="en"
+    messages={msgBasicFull}
+    families={[
+      { id: "deepseek", label: "DeepSeek-V3", code: tmplBasicDeepseek },
+      { id: "qwen", label: "Qwen3", code: tmplBasicQwen },
+      { id: "gptoss", label: "GPT-OSS", code: tmplBasicGptoss },
+    ]}
+  />
+
+  <p>
+    The first thing to notice is how different the templates are. DeepSeek V3 is very compact and even omits reasoning
+    content, because that model family does not support reasoning in this format. GPT-OSS is much more elaborate: it
+    injects extra system information on top of the developer’s instruction, including identity and channel rules.
+  </p>
+
+  <p>
+    Take Qwen3 as an example. We see markers such as <code>{'<|im_start|>'}</code>. These are special tokens. They
+    separate messages and roles so the model can interpret the stream. The actual input sent to the model looks like:
+  </p>
+  <ChatTemplate code={qwenInputOnly} family="qwen" title="actual input" />
+
+  <p>
+    This tells the model that there is a system message, a user message, and the start of an assistant message. The
+    <code>{'<think>'}</code> marker says the assistant should reason before answering. The model’s generated output is:
+  </p>
+  <ChatTemplate code={qwenModelOutput} family="qwen" title="model output" baseSeg="assistant" />
+
+  <p>
+    When reasoning is done, the model emits <code>{'</think>'}</code>, separating reasoning from the final content. When
+    it wants to stop, it emits <code>{'<|im_end|>'}</code>. Once the system sees <code>{'<|im_end|>'}</code>, it stops
+    asking for more tokens, appends the model output to the previous text, and parses it back into a message list.
+  </p>
+
+  <p>
+    What if we kept asking the model for more tokens? It would probably start producing
+    <code>{'<|im_start|>user'}</code>. The model only knows how to continue the text. It does not care that the current
+    section is supposed to be an assistant turn; it has learned that assistant messages are often followed by user
+    messages.
+  </p>
+
+  <p>
+    How do we control the length of reasoning? In practice, there are soft constraints and hard constraints. A soft
+    constraint uses prompting, such as the injected <code>Reasoning: medium</code> in the GPT-OSS system text. It tells
+    the model how much reasoning to do, but the model can still ignore it. A hard constraint uses the template itself.
+    In the Qwen3 example, if we use a “thinking disabled” template, the request sends:
+  </p>
+  <ChatTemplate code={qwenThinkClosed} family="qwen" title="thinking-disabled template" />
+
+  <p>
+    Now the model starts autocomplete believing the reasoning block has already ended, even if it is empty. It will move
+    directly into the final answer.
+  </p>
+
+  <p>
+    Also, even if every assistant message in the message list contains reasoning, a real template may keep only the last
+    reasoning block to save tokens.
+  </p>
+
+  <p>
+    Now let’s add tools. The same interactive module shows a multi-turn message list with tool calls on the left and
+    the rendered output for three model families on the right. Pay attention to where the tool schema is inserted, and
+    how tool calls and tool results are represented.
+  </p>
+  <TemplateLab
+    lang="en"
+    messages={msgComprehensive}
+    families={[
+      { id: "deepseek", label: "DeepSeek-V3", code: tmplToolDeepseek },
+      { id: "qwen", label: "Qwen3", code: tmplToolQwen },
+      { id: "gptoss", label: "GPT-OSS", code: tmplToolGptoss },
+    ]}
+  />
+
+  <p>
+    Tool definitions are often placed inside the system prompt. This is not only because the system prompt has strong
+    behavioral priority; it also matters for KV Cache, which we will discuss later.
+  </p>
+
+  <p>When the model wants to call a tool, it emits the agreed tool-call format. For example:</p>
+  <ChatTemplate code={toolCallSnippet} family="qwen" title="tool-call format" baseSeg="assistant" />
+
+  <p>
+    The system can parse that as a request to call <code>calculator</code> with
+    <code>{'{"expression": "2026 * 5 * 30"}'}</code>.
+  </p>
+
+  <p>
+    Different templates use wildly different formats: JSON, XML-like tags, function-like calls, and more. The goal is
+    always the same: help the model understand tool use and emit a format the system can parse. The training data often
+    contains many examples of these formats, so the model can learn them.
+  </p>
+
+  <p>
+    In general, Chat Templates are not interchangeable between models. During training, each model family sees a
+    particular format, and at inference time it tends to follow that format. Give it an unfamiliar template and it may
+    produce malformed output.
+  </p>
+
+  <Callout type="accent" title="Try it · Chat Template panel">
+    <p>
+      In the playground’s Chat Template panel, switch between Qwen3, DeepSeek-V3, and GPT-OSS to compare how the same
+      Messages render into different plain-text inputs. Hover any fragment to highlight its source message and role
+      across panels.
+    </p>
+    <PlaygroundTry label="Open the playground" />
+  </Callout>
+
+  <h2>Token</h2>
+
+  <Callout type="primary" title="Questions to keep in mind">
+    <ul>
+      <li>Why are models bad at counting letters, such as the number of “r”s in strawberry?</li>
+      <li>What happens if the user prompt contains a special token?</li>
+    </ul>
+  </Callout>
+
+  <p>
+    After the Chat Template step, the model input and output are plain text. But the model still does not process
+    individual characters. It processes Tokens.
+  </p>
+
+  <p>
+    A Token is the model’s smallest processing unit. It is often similar to a word or subword. A tokenizer cuts text
+    into Tokens, and different tokenizers cut differently. For example, one tokenizer may keep a common English word as
+    one Token, while another splits it into several subword pieces. This is true across model families, including
+    DeepSeek V3, Qwen3, and GPT-OSS.
+  </p>
+
+  <p>
+    In general, common chunks of text are more likely to become a single Token, while rare chunks are more likely to be
+    split into multiple Tokens. This reduces the token count statistically over the tokenizer’s training data. Some
+    Unicode characters, including emoji and less common scripts, may even require multiple Tokens for one visible
+    character, because tokenization works over UTF-8 bytes rather than abstract characters.
+  </p>
+
+  <p>
+    A common modern tokenizer family is BPE: Byte Pair Encoding. Each tokenizer has a vocabulary that maps token IDs to
+    byte sequences. Tokenization begins by encoding the text as UTF-8 bytes, where every byte is its own Token. Then the
+    tokenizer repeatedly checks whether adjacent Tokens can merge. If a pair can merge, it merges them; if several pairs
+    can merge, it chooses the one with the smallest resulting ID. This continues until no adjacent pair can merge. The
+    final Token list is converted to Token IDs and sent into the model. The model predicts the next Token ID, and the
+    vocabulary converts that ID back into text.
+  </p>
+
+  <p>
+    The merge process for <code>momo</code> is shown below. Click “Next” to merge step by step, or “Auto play” to watch
+    it move from individual bytes to the final Tokens. This uses the real GPT-OSS <code>o200k</code> vocabulary. Try a
+    word, a single Chinese character such as <code>中</code>, or an emoji; incomplete byte fragments appear as
+    <code>\xHH</code>.
+  </p>
+  <BpeLab text="momo" lang="en" />
+
+  <p>So the tokenizer is not really “splitting” text. It is continuously merging bytes upward.</p>
+
+  <p>
+    Tokenizers also have different vocabulary sizes. For example, DeepSeek V3 has a vocabulary of 128,815 Tokens,
+    Qwen3 has 151,669, and GPT-OSS has 201,088. A larger vocabulary can represent more byte sequences as single Tokens,
+    so the same text may become fewer Tokens—but this is not guaranteed. A tokenizer optimized heavily for one language
+    may perform poorly on another.
+  </p>
+
+  <p>
+    This helps explain why models can struggle with counting. The classic question is “How many r’s are in strawberry?”
+    If a tokenizer represents <code>strawberry</code> as pieces like <code>st/raw/berry</code>, the model sees Token
+    IDs, not individual letters. It does not directly see each <code>r</code>. Numbers are also Token IDs to the model,
+    which is one reason exact arithmetic is hard without tools.
+  </p>
+
+  <p>
+    In the Chat Template section, we saw markers such as <code>{'<|im_start|>'}</code>. These are registered in the
+    vocabulary as special Tokens, so the tokenizer treats them as indivisible markers. This is another reason Chat
+    Templates and tokenizers are coupled. If you mix them, a special Token may be split into ordinary pieces and the
+    model may fail to understand the structure. If user input contains something that looks like a special Token,
+    systems may force it to tokenize as ordinary text to avoid ambiguity.
+  </p>
+
+  <Callout type="accent" title="Try it · Tokens panel">
+    <p>
+      In the Tokens panel, switch among Qwen3, DeepSeek-V3, GPT-OSS, and other tokenizers. You can inspect each Token,
+      its Token ID, and the vocabulary size. Hover a Token to highlight where it came from in the Chat Template.
+    </p>
+    <PlaygroundTry label="Open the playground" />
+  </Callout>
+
+  <h2>KV Cache</h2>
+
+  <Callout type="primary" title="Questions to keep in mind">
+    <ul>
+      <li>Why should tool definitions and the system prompt be placed near the front?</li>
+      <li>Why is the first generated Token often much slower than later ones?</li>
+      <li>What is a cache hit? Can different users share one?</li>
+      <li>How does KV Cache influence agent framework design?</li>
+    </ul>
+  </Callout>
+
+  <p>
+    At the beginning, we said the model only does autocomplete: emit one Token, append it, reread the whole text, and
+    predict the next Token.
+  </p>
+
+  <p>
+    Suppose the model has already generated 1000 Tokens and now needs Token 1001. It would have to read the previous
+    1000 Tokens again. For Token 1002, it would read 1001 Tokens again, and so on. Without optimization, generating
+    <em>n</em> Tokens grows like a triangle, roughly O(n²). That is terrible.
+  </p>
+
+  <p>Fortunately, the model’s structure lets us cache part of the previous computation.</p>
+
+  <p>
+    If you are curious, we can lift the black-box lid just a little. You can skip this paragraph and still follow the
+    rest. When predicting the next Token, the model “looks back” at previous Tokens through Attention. More specifically,
+    it computes a pair of vectors for each Token: a Key, like an index entry, and a Value, like the content behind that
+    entry. For a new Token, the model uses a Query—“what am I looking for?”—to compare against previous Keys, then
+    combines the corresponding Values as evidence for the prediction. We will save the details of Attention for another
+    article. For now, remember this: every Token gets a K/V pair.
+  </p>
+
+  <p>
+    Because a Token can only attend to itself and earlier Tokens, its K/V pair does not depend on future Tokens. Once
+    computed, it will not change when more Tokens are appended. So why recompute it every step? Store it and reuse it.
+    That is KV Cache. The model caches the K and V for every Token. When predicting a new Token, it computes only the
+    new Token’s K/V, appends them to the cache, and uses the new Query to read previous K/V from cache. The O(n²)
+    triangle becomes O(n) work during decoding.
+  </p>
+
+  <p>
+    The panel below puts both strategies in the same causal-attention grid. Rows are generation steps; columns are Token
+    positions. Only the lower triangle is valid, because a Token can see itself and earlier Tokens only. Click “Next” to
+    generate one Token at a time. On the left, “Without KV Cache” recomputes the whole triangle each step. On the right,
+    “With KV Cache” computes only the new diagonal cell and reads the previous cells from cache. The counters drift
+    apart quickly.
+  </p>
+
+  <AttentionKvLab lang="en" />
+
+  <p>
+    One detail: the cache stores K and V, not Q. Each new Token creates a fresh Query to read the cache; older Queries
+    are not needed again after their prediction step. That is why it is called “KV Cache,” not “QKV Cache.”
+  </p>
+
+  <p>
+    When cache can be reused, computation drops sharply. That is why many model providers price cached input tokens
+    lower than uncached input tokens: a cache hit is much cheaper to serve than recomputing the same prefix.
+  </p>
+
+  <p>
+    So how does a cache hit happen? The key rule is simple: KV Cache only applies to an identical prefix. Even though a
+    Token’s K/V does not depend on what comes after it, it does depend on everything before it. If you change one Token
+    in the prefix, every K/V pair after that position may change. The cache can keep only the part before the edit; the
+    rest is invalid and must be recomputed.
+  </p>
+
+  <p>
+    The small panel below demonstrates this rule. Type text and it will be tokenized by the real tokenizer. Click
+    “Cache current” to store the Token sequence. Then edit the text above. The system searches all cached entries and
+    reuses the longest common prefix: the shared prefix turns green, and everything after the first mismatch turns
+    orange because it must be recomputed. The lower view draws all cached entries as a prefix tree. Shared beginnings
+    are stored once; branches appear only where sequences diverge. Cache a few strings with the same beginning and you
+    will see the footprint become smaller than storing each string independently.
+  </p>
+
+  <PrefixCacheLab lang="en" />
+
+  <Callout type="accent" title="Try it · Context × KV Cache panel">
+    <p>
+      The playground’s Context × KV Cache panel draws the full context as three colored regions: cached input, uncached
+      input, and output. Edit an early message and the cached-input region shrinks; restore it and the cache hit returns.
+      You can also switch model architectures to compare KV memory footprint per Token.
+    </p>
+    <PlaygroundTry label="Open the playground" />
+  </Callout>
+
+  <p>
+    Because cache hits depend only on identical prefixes, the same prefix can be reused across requests and even across
+    users. Stable system prompts and tool definitions should go first. Conversation history should be appended after
+    them. If ten thousand users share the same system prompt and tool schema, that public prefix needs to be computed
+    once and can then be reused. This optimization is usually called Prefix Caching.
+  </p>
+
+  <p>
+    An efficient agent therefore keeps fixed content—system prompts, tool definitions, policies—pinned near the front,
+    and puts volatile content later. Conversation history should preferably append forward instead of rewriting the
+    middle. In ReAct-style loops, where thought/action cycles make the context grow quickly, stable prefixes save major
+    time and cost. If you put a second-by-second timestamp inside the system prompt, almost every turn starts from a
+    different prefix, which is slow and expensive.
+  </p>
+
+  <p>
+    KV Cache is not free. Every Token’s K/V vectors must be stored in expensive GPU memory, and the cache grows with
+    context length. Its size also depends heavily on model architecture. The industry has invented many tricks around
+    it: GQA and MQA share K/V across attention heads, MLA compresses K/V, and systems may use KV quantization or
+    offloading. We will leave those details for later.
+  </p>
+
+  <p>
+    And that completes the journey from a sentence to KV Cache. Your text becomes Messages, the Chat Template compiles
+    those Messages into one long plain-text stream, the tokenizer merges bytes into Tokens, and the model predicts one
+    Token at a time while caching K/V vectors for reuse. Peel away the impressive agent shell, and underneath is still
+    an autocomplete black box—surrounded by a lot of careful engineering around Tokens, context, and cache. Where did
+    the Tokens go? Now you know.
+  </p>
+</article>

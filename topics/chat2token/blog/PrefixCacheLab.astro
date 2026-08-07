@@ -16,18 +16,43 @@ interface Props {
   text?: string;
   /** Cache capacity, measured in TOKENS (shared prefixes only count once). */
   capacity?: number;
+  lang?: "zh" | "en";
 }
 
-const {
-  title = "前缀缓存命中",
-  text = "语言的边界就是我世界的边界",
-  capacity = 48,
-} = Astro.props;
+const copy = {
+  zh: {
+    title: "前缀缓存命中",
+    text: "语言的边界就是我世界的边界",
+    inputAria: "输入文本",
+    save: "缓存当前",
+    hit: "命中缓存（直接复用）",
+    dead: "需重算",
+    none: "未用到（缓存里的其他分支）",
+    cacheLabel: "缓存占用 · 共享前缀只存一份",
+    clear: "清空",
+  },
+  en: {
+    title: "Prefix cache hits",
+    text: "The limits of my language mean the limits of my world.",
+    inputAria: "Input text",
+    save: "Cache current",
+    hit: "Cache hit (reuse directly)",
+    dead: "Needs recompute",
+    none: "Unused (other cached branches)",
+    cacheLabel: "Cache footprint · shared prefixes stored once",
+    clear: "Clear",
+  },
+} as const;
+
+const { title, text, capacity = 48, lang = "zh" } = Astro.props;
+const c = copy[lang];
+const labTitle = title ?? c.title;
+const initialText = text ?? c.text;
 ---
 
-<div class="pcache" data-pcache data-pcache-cap-max={capacity}>
+<div class="pcache" data-pcache data-pcache-lang={lang} data-pcache-cap-max={capacity}>
   <div class="pcache__head">
-    <span class="pcache__title">{title}</span>
+    <span class="pcache__title">{labTitle}</span>
     <span class="pcache__status" data-pcache-status></span>
   </div>
 
@@ -36,14 +61,14 @@ const {
       class="field pcache__field"
       type="text"
       data-pcache-text
-      value={text}
+      value={initialText}
       maxlength="80"
       spellcheck="false"
       autocomplete="off"
-      aria-label="输入文本"
+      aria-label={c.inputAria}
     />
     <button class="btn btn-primary pcache__save" type="button" data-pcache-cache>
-      <Database size={15} strokeWidth={2.5} /> 缓存当前
+      <Database size={15} strokeWidth={2.5} /> {c.save}
     </button>
   </div>
 
@@ -52,16 +77,16 @@ const {
   <p class="pcache__note" data-pcache-note></p>
 
   <div class="pcache__legend">
-    <span class="pcache__key"><i class="pcache__sw pcache__sw--hit"></i>命中缓存（直接复用）</span>
-    <span class="pcache__key"><i class="pcache__sw pcache__sw--dead"></i>需重算</span>
-    <span class="pcache__key"><i class="pcache__sw pcache__sw--none"></i>未用到（缓存里的其他分支）</span>
+    <span class="pcache__key"><i class="pcache__sw pcache__sw--hit"></i>{c.hit}</span>
+    <span class="pcache__key"><i class="pcache__sw pcache__sw--dead"></i>{c.dead}</span>
+    <span class="pcache__key"><i class="pcache__sw pcache__sw--none"></i>{c.none}</span>
   </div>
 
   <div class="pcache__cache">
     <div class="pcache__cache-head">
-      <span class="pcache__cache-label">缓存占用 · 共享前缀只存一份</span>
+      <span class="pcache__cache-label">{c.cacheLabel}</span>
       <span class="pcache__cap" data-pcache-cap></span>
-      <button class="pcache__clear" type="button" data-pcache-clear>清空</button>
+      <button class="pcache__clear" type="button" data-pcache-clear>{c.clear}</button>
     </div>
     <div class="pcache__capbar"><span class="pcache__capfill" data-pcache-capfill></span></div>
     <div class="pcache__list" data-pcache-list></div>
@@ -84,6 +109,33 @@ const {
   interface TNode { tok: number; disp: string; children: TNode[]; hit: boolean }
 
   async function initPrefixCache(root: HTMLElement) {
+    const isEn = root.dataset.pcacheLang === "en";
+    const txt = {
+      used: isEn ? "Used" : "已用",
+      emptyCache: isEn
+        ? "No cache yet. Click “Cache current” above, then store another text with the same beginning to see how prefixes are shared."
+        : "还没有缓存。点上面「缓存当前」存一条，再存一条开头相同的，看看它们怎么共享前缀。",
+      typePrompt: isEn ? "Type some text" : "输入一些文本",
+      notCached: isEn ? "not cached" : "未缓存",
+      hitRate: isEn ? "Hit rate" : "命中率",
+      initialNote: (n: number) =>
+        isEn
+          ? `This text becomes <b>${n}</b> Token${n === 1 ? "" : "s"}. Click “Cache current”, then edit the input above.`
+          : `这段文本被分成了 <b>${n}</b> 个 Token。点「缓存当前」把它存进缓存，再回到上面改改看。`,
+      fullHitNote: (n: number) =>
+        isEn
+          ? `It exactly matches a cached prefix → all <b>${n}</b> Token${n === 1 ? "" : "s"} hit, so <b>nothing needs recomputing</b>.`
+          : `和缓存里的某条前缀完全一致 → <b>${n}</b> 个 Token 全部命中，<b>一个都不用重算</b>。`,
+      zeroHitNote: (n: number) =>
+        isEn
+          ? `It shares no beginning with anything in cache → all <b>${n}</b> Token${n === 1 ? "" : "s"} must be recomputed.`
+          : `和缓存里任何一条都没有共同开头 → <b>${n}</b> 个 Token 全部需要重算。`,
+      partialHitNote: (hit: number, miss: number) =>
+        isEn
+          ? `Reused the longest common prefix in the cache tree: the first <b>${hit}</b> Token${hit === 1 ? "" : "s"} hit directly; branching starts at Token <b>${hit + 1}</b>, so the remaining <b>${miss}</b> need recomputing.`
+          : `复用了缓存树里最长的公共前缀：前 <b>${hit}</b> 个 Token 直接命中；从第 <b>${hit + 1}</b> 个起分叉，后面 <b>${miss}</b> 个需重算。`,
+      loadFailed: isEn ? "Tokenizer failed to load; check the network and refresh." : "分词器加载失败，请检查网络后刷新。",
+    };
     const field = root.querySelector<HTMLInputElement>("[data-pcache-text]")!;
     const toksEl = root.querySelector<HTMLElement>("[data-pcache-toks]")!;
     const noteEl = root.querySelector<HTMLElement>("[data-pcache-note]")!;
@@ -192,12 +244,12 @@ const {
       const { root, nodes } = buildTrie();
       if (hit > 0) markHit(root, cur, hit);
 
-      capEl.innerHTML = `已用 <b>${nodes}</b> / ${CAP} Tokens`;
+      capEl.innerHTML = `${txt.used} <b>${nodes}</b> / ${CAP} Tokens`;
       capFill.style.width = `${Math.min(100, (nodes / CAP) * 100)}%`;
       capFill.classList.toggle("is-warn", nodes > CAP * 0.85);
 
       if (cache.length === 0) {
-        listEl.innerHTML = `<div class="pcache__list-empty">还没有缓存。点上面「缓存当前」存一条，再存一条开头相同的，看看它们怎么共享前缀。</div>`;
+        listEl.innerHTML = `<div class="pcache__list-empty">${txt.emptyCache}</div>`;
         return;
       }
 
@@ -292,25 +344,25 @@ const {
         const cls = hasCache && i < hit ? "is-hit" : "is-dead";
         html.push(`<span class="pcache__tok ${cls}">${fmtTok(disp[i])}</span>`);
       }
-      toksEl.innerHTML = html.join("") || '<span class="pcache__empty">输入一些文本</span>';
+      toksEl.innerHTML = html.join("") || `<span class="pcache__empty">${txt.typePrompt}</span>`;
 
       if (!hasCache) {
-        statusEl.textContent = `${cur.length} Tokens · 未缓存`;
+        statusEl.textContent = `${cur.length} Tokens · ${txt.notCached}`;
         statusEl.className = "pcache__status";
-        noteEl.innerHTML = `这段文本被分成了 <b>${cur.length}</b> 个 Token。点「缓存当前」把它存进缓存，再回到上面改改看。`;
+        noteEl.innerHTML = txt.initialNote(cur.length);
       } else if (miss === 0) {
-        statusEl.textContent = `命中率 100%`;
+        statusEl.textContent = `${txt.hitRate} 100%`;
         statusEl.className = "pcache__status is-full";
-        noteEl.innerHTML = `和缓存里的某条前缀完全一致 → <b>${cur.length}</b> 个 Token 全部命中，<b>一个都不用重算</b>。`;
+        noteEl.innerHTML = txt.fullHitNote(cur.length);
       } else if (hit === 0) {
-        statusEl.textContent = `命中率 0%`;
+        statusEl.textContent = `${txt.hitRate} 0%`;
         statusEl.className = "pcache__status is-partial";
-        noteEl.innerHTML = `和缓存里任何一条都没有共同开头 → <b>${cur.length}</b> 个 Token 全部需要重算。`;
+        noteEl.innerHTML = txt.zeroHitNote(cur.length);
       } else {
         const rate = cur.length ? Math.round((hit / cur.length) * 100) : 0;
-        statusEl.textContent = `命中率 ${rate}%`;
+        statusEl.textContent = `${txt.hitRate} ${rate}%`;
         statusEl.className = "pcache__status is-partial";
-        noteEl.innerHTML = `复用了缓存树里最长的公共前缀：前 <b>${hit}</b> 个 Token 直接命中；从第 <b>${hit + 1}</b> 个起分叉，后面 <b>${miss}</b> 个需重算。`;
+        noteEl.innerHTML = txt.partialHitNote(hit, miss);
       }
 
       renderTree(cur, hit);
@@ -362,7 +414,7 @@ const {
       } catch { /* hex fallback simply won't apply */ }
       render();
     } catch {
-      noteEl.textContent = "分词器加载失败，请检查网络后刷新。";
+      noteEl.textContent = txt.loadFailed;
     }
   }
 

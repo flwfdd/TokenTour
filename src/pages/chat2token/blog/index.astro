@@ -1,26 +1,25 @@
 ---
-// Thin route shell for the chat2token long-form article (Chinese).
+// Thin route shell for the default chat2token long-form article (English).
 //
-// Per the topic boundary convention, the prose lives with the topic
-// (`topics/chat2token/blog/zh/index.astro`) and `src/pages/` only adds a
-// Layout wrapper + site chrome. Static-prerendered: no Worker needed.
+// The prose lives with the topic (`topics/chat2token/blog/en/index.astro`);
+// this page only adds Layout, site chrome, cover art, and the language switch.
 import Layout from "~/layouts/Layout.astro";
 import Header from "~/components/Header.astro";
 import CoverHero from "~/components/CoverHero.astro";
 import Toc from "~/components/Toc.astro";
-import Article from "../../../../topics/chat2token/blog/zh/index.astro";
+import Article from "../../../../topics/chat2token/blog/en/index.astro";
 
 export const prerender = true;
 ---
 
-<Layout title="Chat to Token · 从一句话到 KV Cache" lang="zh-CN">
-  <Header langHref="/chat2token/blog" langLabel="English" langAria="Switch to English" />
+<Layout title="Chat to Token · From Prompt to KV Cache" lang="en">
+  <Header langHref="/chat2token/blog/zh" langLabel="中文" langAria="Switch to Chinese" />
 
-  <Toc title="目录" />
+  <Toc title="Contents" />
 
   <main class="column blog">
     <CoverHero
-      label="Chat to Token 封面"
+      label="Chat to Token cover"
       titleLayout="stack"
       titleLines={[
         { text: "Chat", tone: "primary", size: "hero" },

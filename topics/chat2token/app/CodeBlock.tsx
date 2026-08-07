@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { Copy, Check, WrapText } from "lucide-react";
+import { useLang } from "./i18n";
+
+const codeCopy = {
+  en: {
+    wrap: "Toggle line wrap",
+    copy: "Copy code",
+  },
+  zh: {
+    wrap: "切换自动换行",
+    copy: "复制代码",
+  },
+} as const;
 
 /**
  * Runtime twin of `src/components/CodeBlock.astro`, for React islands that need
@@ -33,6 +45,8 @@ export default function CodeBlock({
   title?: string;
   className?: string;
 }) {
+  const uiLang = useLang();
+  const copyText = codeCopy[uiLang];
   const [html, setHtml] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [wrapped, setWrapped] = useState(false);
@@ -98,7 +112,7 @@ export default function CodeBlock({
             type="button"
             className={"code-block__btn code-block__wrap" + (wrapped ? " is-on" : "")}
             onClick={() => setWrapped((w) => !w)}
-            aria-label="切换自动换行"
+            aria-label={copyText.wrap}
             aria-pressed={wrapped}
           >
             <WrapText className="code-block__icon" size={15} strokeWidth={2} />
@@ -107,7 +121,7 @@ export default function CodeBlock({
             type="button"
             className={"code-block__btn code-block__copy" + (copied ? " is-copied" : "")}
             onClick={copy}
-            aria-label="复制代码"
+            aria-label={copyText.copy}
           >
             <Copy className="code-block__icon code-block__icon--copy" size={15} strokeWidth={2} />
             <Check

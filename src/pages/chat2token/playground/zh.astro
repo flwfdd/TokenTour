@@ -1,0 +1,12 @@
+---
+import Layout from "~/layouts/Layout.astro";
+import App from "../../../../topics/chat2token/app/App.tsx";
+
+// Chinese route alias for the playground. The React app detects this path and
+// shows the opposite language switch target in its own full-bleed top chrome.
+export const prerender = true;
+---
+
+<Layout title="Chat to Token · Playground" lang="zh-CN">
+  <App client:load initialLang="zh" />
+</Layout>

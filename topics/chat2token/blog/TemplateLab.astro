@@ -37,9 +37,12 @@ interface Props {
   /** JSON: a message array, or `{ messages, tools }`. */
   messages: string;
   families: FamilySpec[];
+  lang?: "zh" | "en";
 }
 
-const { messages: messagesJson, families } = Astro.props;
+const { messages: messagesJson, families, lang = "zh" } = Astro.props;
+const modelFamilyLabel = lang === "en" ? "Model family" : "模型家族";
+const legendLabel = lang === "en" ? "Hover to link · click to pin" : "悬停联动 · 点击固定";
 
 type AnyMsg = Record<string, any>;
 const ROLE_SET = new Set(["system", "user", "assistant", "tool"]);
@@ -76,14 +79,14 @@ const legendSegs = SEG_ORDER.filter((s) => present.has(s));
   <div class="tlab__body">
     <section class="tlab__pane">
       <div class="tlab__plabel">messages</div>
-      <MessageView code={messagesJson} />
+      <MessageView code={messagesJson} lang={lang} />
     </section>
 
     <section class="tlab__pane tlab__tmpl">
       <div class="tlab__plabel">chat template</div>
       {/* Inline Tabs markup (the global Tabs.astro <script>, present via the
           MessageView above, auto-wires any .tabs + .tab-panels siblings). */}
-      <div class="tabs" role="tablist" aria-label="模型家族">
+      <div class="tabs" role="tablist" aria-label={modelFamilyLabel}>
         {
           rendered.map((f, i) => (
             <button class="tab" role="tab" aria-selected={i === 0} data-tab={String(i)}>
@@ -113,7 +116,7 @@ const legendSegs = SEG_ORDER.filter((s) => present.has(s));
         </button>
       ))
     }
-    <span class="tlab__legend-label">悬停联动 · 点击固定</span>
+    <span class="tlab__legend-label">{legendLabel}</span>
   </div>
 </div>
 

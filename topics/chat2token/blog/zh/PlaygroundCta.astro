@@ -7,11 +7,17 @@ import PlaygroundTry from "./PlaygroundTry.astro";
 interface Props {
   /** Where the playground lives. Defaults to the chat2token playground route. */
   href?: string;
+  title?: string;
+  label?: string;
 }
-const { href = "/chat2token/playground" } = Astro.props;
+const {
+  href = "/chat2token/playground",
+  title = "交互式 Playground",
+  label = "打开 Playground",
+} = Astro.props;
 ---
 
-<Callout type="accent" title="交互式 Playground">
+<Callout type="accent" title={title}>
   <p><slot /></p>
-  <PlaygroundTry href={href} label="打开 Playground" />
+  <PlaygroundTry href={href} label={label} />
 </Callout>

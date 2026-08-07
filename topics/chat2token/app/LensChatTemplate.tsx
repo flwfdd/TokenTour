@@ -5,7 +5,9 @@ import { useScrollMatchIntoView } from "./useScrollMatch";
 import { useConversation, getActiveTools } from "./store";
 import { renderAndTokenize } from "./lib/pipeline";
 import { TEMPLATE_BUNDLES } from "./lib/chatTemplates";
-import { SEG_LABEL, matchesHover, withinMessageFraction, roleSurfaceStyle } from "./visual";
+import { matchesHover, withinMessageFraction, roleSurfaceStyle } from "./visual";
+import { useLang } from "./i18n";
+import { segmentLabel } from "./locale";
 import type { TokenInfo } from "./lib/types";
 
 const FAMILY_LABEL: Record<string, string> = {
@@ -14,9 +16,30 @@ const FAMILY_LABEL: Record<string, string> = {
   gpt_oss: "GPT-OSS",
 };
 
+const templateCopy = {
+  en: {
+    selectTitle:
+      "Choose the chat template. It is decoupled from the imaginary architecture: architecture affects KV Cache estimates; this controls rendering/tokenization.",
+    compareTitle:
+      "Compare another template family side by side. Hover either side to highlight the current token and roughly synchronize by message position.",
+    compare: "Compare…",
+    chars: "characters",
+    partialByte: "partial-byte token",
+  },
+  zh: {
+    selectTitle: "选择 chat template。和“假想架构”解耦：架构只影响 KV Cache 估算，这里只影响渲染/分词。",
+    compareTitle: "并排对比另一个家族的模板。hover 任一侧会高亮当前 token，并按消息位置大致同步另一侧。",
+    compare: "对比…",
+    chars: "字符",
+    partialByte: "partial-byte token",
+  },
+} as const;
+
 type SubPane = "primary" | "compare" | null;
 
 export default function LensChatTemplate() {
+  const lang = useLang();
+  const copy = templateCopy[lang];
   const view = useLensView();
   const hoverTokenIndex = useConversation((s) => s.hoverTokenIndex);
   const hoverRole = useConversation((s) => s.hoverRole);
@@ -113,7 +136,7 @@ export default function LensChatTemplate() {
             value={templateFamily}
             onChange={(e) => setTemplateFamily(e.target.value)}
             className="text-[11px] py-0.5 px-1.5"
-            title="选择 chat template。和'假想架构'解耦：架构只影响 KV Cache 估算，这里只影响渲染/分词。"
+            title={copy.selectTitle}
           >
             {families.map((f) => (
               <option key={f} value={f}>
@@ -125,9 +148,9 @@ export default function LensChatTemplate() {
             value={compareFamily ?? ""}
             onChange={(e) => setCompareFamily(e.target.value || null)}
             className="text-[11px] py-0.5 px-1.5"
-            title="并排对比另一个家族的模板。hover 任一侧会高亮当前 token，并按消息位置大致同步另一侧。"
+            title={copy.compareTitle}
           >
-            <option value="">对比…</option>
+            <option value="">{copy.compare}</option>
             {families
               .filter((f) => f !== view.family)
               .map((f) => (
@@ -164,6 +187,7 @@ export default function LensChatTemplate() {
           }}
           onLeaveTokens={() => setPrimaryLocal(null)}
           onSubEnter={() => setActiveSub("primary")}
+          lang={lang}
           onScroll={
             compareTokens
               ? () => {
@@ -193,6 +217,7 @@ export default function LensChatTemplate() {
             }}
             onLeaveTokens={() => setCompareLocal(null)}
             onSubEnter={() => setActiveSub("compare")}
+            lang={lang}
             onScroll={() => {
               if (activeSub === "compare") linkScroll(compareRef.current, primaryRef.current);
             }}
@@ -277,6 +302,7 @@ const TokenRenderedPre = forwardRef<HTMLPreElement, {
   onScroll?: React.UIEventHandler<HTMLPreElement>;
   label?: string;
   dividerRight?: boolean;
+  lang: ReturnType<typeof useLang>;
 }>(function TokenRenderedPre(
   {
     tokens,
@@ -289,6 +315,7 @@ const TokenRenderedPre = forwardRef<HTMLPreElement, {
     onScroll,
     label,
     dividerRight,
+    lang,
   },
   ref,
 ) {
@@ -304,7 +331,7 @@ const TokenRenderedPre = forwardRef<HTMLPreElement, {
     >
       {label && (
         <div className="px-3 py-1 text-[11px] text-(--color-ink-soft)">
-          {label} · {tokens.length.toLocaleString()} tok · {charCount.toLocaleString()} 字符
+          {label} · {tokens.length.toLocaleString()} tok · {charCount.toLocaleString()} {templateCopy[lang].chars}
         </div>
       )}
       <pre
@@ -344,7 +371,7 @@ const TokenRenderedPre = forwardRef<HTMLPreElement, {
               data-msgid={t.messageId ?? ""}
               style={style}
               onMouseEnter={() => onHoverToken(t)}
-              title={`pos=${t.position} · id=${t.id} · ${SEG_LABEL[t.segment]}${isEmpty ? " · (partial-byte token)" : ""}`}
+              title={`pos=${t.position} · id=${t.id} · ${segmentLabel(lang, t.segment)}${isEmpty ? ` · (${templateCopy[lang].partialByte})` : ""}`}
             >
               {t.text}
             </span>

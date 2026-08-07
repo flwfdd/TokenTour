@@ -7,14 +7,89 @@ import { getModel } from "./lib/modelRegistry";
 import { PROVIDERS } from "./lib/providers";
 import { runAgentLoop } from "./lib/agentLoop";
 import { BUILTIN_TOOLS } from "./lib/tools";
-import { buildDemoMessages, DEMO_SYSTEM_PROMPT } from "./lib/demo";
+import { buildDemoMessages } from "./lib/demo";
 import { stripSystemSentinel } from "./lib/messageUtils";
 import { useScrollMatchIntoView } from "./useScrollMatch";
 import { SEG_ROLE_VAR, roleSurfaceStyle } from "./visual";
+import { useLang } from "./i18n";
+import { DEFAULT_SYSTEM_PROMPT } from "./localizedDefaults";
 import type { Message, Role, TokenSegment } from "./lib/types";
+
+const chatCopy = {
+  en: {
+    apiKeyMissing: "Add an API key in Settings / BYOK, or switch to proxy mode.",
+    systemPrompt: "System prompt",
+    tools: "Tools:",
+    messages: "Messages",
+    newMessageTitle: (role: Role) => `New ${role} message`,
+    viewJsonTitle: "View the actual messages JSON sent to the provider",
+    viewJson: "View JSON",
+    emptyMessages: "No messages yet.",
+    inputPlaceholder: "Say something to the agent... (⌘/Ctrl+Enter to send)",
+    noModel: "no model",
+    cancel: "Cancel",
+    demo: "Demo",
+    demoTitle: "No API key needed. Load a recorded example conversation.",
+    send: "Send",
+    edit: "Edit",
+    delete: "Delete",
+    confirmDelete: "Click again to confirm deletion",
+    noThinking: "(No reasoning; leave blank if none)",
+    toolName: "Tool name",
+    toolCallId: "Matching call id",
+    content: "Content",
+    assistantContentPlaceholder: "(May be blank when this message only contains tool calls)",
+    toolCallsPlaceholder:
+      '(No tool calls; leave blank if none)\n[\n  { "name": "calculator", "arguments": { "expression": "1+1" } }\n]',
+    jsonParseError: (message: string) => `JSON parse failed: ${message}`,
+    toolCallsArrayError: "tool_calls must be an array",
+    missingNameError: (i: number) => `Item ${i + 1} is missing a string name`,
+    argsObjectError: (i: number) => `Item ${i + 1} arguments must be an object`,
+    save: "Save",
+    emptyContent: "(empty content)",
+    collapse: "Collapse",
+    expand: "Expand all",
+  },
+  zh: {
+    apiKeyMissing: "请在「设置 / BYOK」里填入 API key，或切换到代理模式。",
+    systemPrompt: "系统提示词",
+    tools: "工具:",
+    messages: "消息",
+    newMessageTitle: (role: Role) => `新建 ${role} 消息`,
+    viewJsonTitle: "查看真正发给 provider 的 messages JSON",
+    viewJson: "查看 JSON",
+    emptyMessages: "还没有消息。",
+    inputPlaceholder: "对 Agent 说点什么... (⌘/Ctrl+Enter 发送)",
+    noModel: "未设置模型",
+    cancel: "取消",
+    demo: "演示",
+    demoTitle: "无需 API key，跑一段录制好的对话",
+    send: "发送",
+    edit: "编辑",
+    delete: "删除",
+    confirmDelete: "再次点击确认删除",
+    noThinking: "（无思考，可留空）",
+    toolName: "工具名",
+    toolCallId: "对应的 call id",
+    content: "内容",
+    assistantContentPlaceholder: "（仅工具调用时可留空）",
+    toolCallsPlaceholder:
+      '（无工具调用，可留空）\n[\n  { "name": "calculator", "arguments": { "expression": "1+1" } }\n]',
+    jsonParseError: (message: string) => `JSON 解析失败：${message}`,
+    toolCallsArrayError: "tool_calls 必须是一个数组",
+    missingNameError: (i: number) => `第 ${i + 1} 项缺少字符串 name`,
+    argsObjectError: (i: number) => `第 ${i + 1} 项 arguments 必须是对象`,
+    save: "保存",
+    emptyContent: "（空内容）",
+    collapse: "收起",
+    expand: "展开全部",
+  },
+} as const;
 
 export default function AgentChat() {
   const state = useConversation();
+  const lang = useLang();
+  const copy = chatCopy[lang];
   const [input, setInput] = useState("");
   // Tracks a just-created message so its card opens straight into the editor.
   const [newMsgId, setNewMsgId] = useState<string | null>(null);
@@ -74,14 +149,14 @@ export default function AgentChat() {
     // No playback — just initialize the conversation to a representative
     // example (incl. a reasoning trace) so every panel has something to show.
     state.clearSteps();
-    state.setSystemPrompt(DEMO_SYSTEM_PROMPT);
-    const msgs = await buildDemoMessages();
+    state.setSystemPrompt(DEFAULT_SYSTEM_PROMPT[lang]);
+    const msgs = await buildDemoMessages(lang);
     state.setMessages(msgs);
   };
 
   const runLoop = async (msgs: Message[]) => {
     if (!state.provider.apiKey && !state.provider.useProxy) {
-      alert("请在「设置 / BYOK」里填入 API key，或切换到代理模式。");
+      alert(copy.apiKeyMissing);
       return;
     }
     state.setRunning(true);
@@ -108,6 +183,7 @@ export default function AgentChat() {
         maxTokens: state.provider.maxTokens,
         tokenizerKey: state.tokenizerKey,
         templateFamily: state.templateFamily,
+        lang,
         onStep: (s) => state.appendStep(s),
         onMessages: (m) => state.setMessages(stripSystemSentinel(m)),
         signal: ctrl.signal,
@@ -137,7 +213,7 @@ export default function AgentChat() {
     >
       <div className="px-3 pt-2.5 pb-2">
         <div className="mb-1 text-[11px] uppercase tracking-wider text-(--color-muted)">
-          System prompt
+          {copy.systemPrompt}
         </div>
         <textarea
           value={state.systemPrompt}
@@ -160,7 +236,7 @@ export default function AgentChat() {
           }}
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          <span className="text-[11px] text-(--color-muted)">Tools:</span>
+          <span className="text-[11px] text-(--color-muted)">{copy.tools}</span>
           {BUILTIN_TOOLS.map((t) => {
             const on = state.enabledTools.includes(t.spec.name);
             return (
@@ -187,7 +263,7 @@ export default function AgentChat() {
       <div className="flex items-center justify-between gap-2 px-3 pt-1.5 pb-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] uppercase tracking-wider text-(--color-muted)">
-            Messages · {state.messages.length}
+            {copy.messages} · {state.messages.length}
           </span>
           <span className="text-[11px] text-(--color-muted)">·</span>
           {(["user", "assistant", "tool"] as const).map((r) => (
@@ -195,7 +271,7 @@ export default function AgentChat() {
               key={r}
               onClick={() => addMessage(r)}
               disabled={state.isRunning}
-              title={`新建 ${r} 消息`}
+              title={copy.newMessageTitle(r)}
               onMouseEnter={() => state.setHoverRole(r)}
               onMouseLeave={() => state.setHoverRole(null)}
               className="rounded-md px-1.5 py-0.5 text-[10px] disabled:opacity-40"
@@ -211,9 +287,9 @@ export default function AgentChat() {
         <button
           onClick={() => state.setMessagesModalOpen(true)}
           className="text-[11px] text-(--color-accent) hover:underline underline-offset-2"
-          title="查看真正发给 provider 的 messages JSON"
+          title={copy.viewJsonTitle}
         >
-          查看 JSON
+          {copy.viewJson}
         </button>
       </div>
 
@@ -224,7 +300,7 @@ export default function AgentChat() {
       >
         {state.messages.length === 0 ? (
           <div className="grid h-full place-items-center text-xs text-(--color-muted)">
-            还没有消息。
+            {copy.emptyMessages}
           </div>
         ) : (
           state.messages.map((m) => (
@@ -253,26 +329,26 @@ export default function AgentChat() {
               handleSend();
             }
           }}
-          placeholder="对 Agent 说点什么... (⌘/Ctrl+Enter 发送)"
+          placeholder={copy.inputPlaceholder}
           rows={3}
           className="w-full resize-y text-sm"
         />
         <div className="mt-2 flex items-center justify-between gap-2">
           <div className="text-[11px] text-(--color-muted)">
-            {state.provider.id} · {state.provider.model || "no model"}
+            {state.provider.id} · {state.provider.model || copy.noModel}
           </div>
           <div className="flex items-center gap-2">
             {state.isRunning ? (
               <button className="btn" onClick={cancel}>
-                取消
+                {copy.cancel}
               </button>
             ) : (
-              <button className="btn" onClick={handleDemo} title="无需 API key，跑一段录制好的对话">
-                Demo
+              <button className="btn" onClick={handleDemo} title={copy.demoTitle}>
+                {copy.demo}
               </button>
             )}
             <button className="btn btn-primary" onClick={handleSend} disabled={state.isRunning}>
-              发送
+              {copy.send}
             </button>
           </div>
         </div>
@@ -402,6 +478,8 @@ function MessageCard({
   onHoverEnter: () => void;
   onHoverLeave: () => void;
 }) {
+  const lang = useLang();
+  const copy = chatCopy[lang];
   const seg = (m.role as TokenSegment) in SEG_ROLE_VAR ? (m.role as TokenSegment) : "system";
   const content = m.content ?? "";
   const isLong =
@@ -484,17 +562,17 @@ function MessageCard({
         try {
           parsed = JSON.parse(raw);
         } catch (e) {
-          setToolCallsError(`JSON 解析失败：${(e as Error).message}`);
+          setToolCallsError(copy.jsonParseError((e as Error).message));
           return;
         }
         if (!Array.isArray(parsed)) {
-          setToolCallsError("tool_calls 必须是一个数组");
+          setToolCallsError(copy.toolCallsArrayError);
           return;
         }
         try {
           patch.tool_calls = parsed.map((tc: any, i) => {
             if (!tc || typeof tc.name !== "string") {
-              throw new Error(`第 ${i + 1} 项缺少字符串 name`);
+              throw new Error(copy.missingNameError(i));
             }
             const args =
               tc.arguments == null
@@ -502,7 +580,7 @@ function MessageCard({
                 : typeof tc.arguments === "object"
                   ? tc.arguments
                   : (() => {
-                      throw new Error(`第 ${i + 1} 项 arguments 必须是对象`);
+                      throw new Error(copy.argsObjectError(i));
                     })();
             return { id: typeof tc.id === "string" && tc.id ? tc.id : nanoid(8), name: tc.name, arguments: args };
           });
@@ -555,7 +633,7 @@ function MessageCard({
         </div>
         {!disabled && !editing && (
           <div className="flex items-center gap-0.5">
-            <IconButton onClick={beginEdit} title="编辑">
+            <IconButton onClick={beginEdit} title={copy.edit}>
               <Pencil size={13} strokeWidth={2} />
             </IconButton>
             <IconButton
@@ -563,7 +641,7 @@ function MessageCard({
                 if (armedDelete) onDelete();
                 else setArmedDelete(true);
               }}
-              title={armedDelete ? "再次点击确认删除" : "删除"}
+              title={armedDelete ? copy.confirmDelete : copy.delete}
               style={armedDelete ? { color: "var(--color-danger)" } : undefined}
             >
               {armedDelete ? (
@@ -588,7 +666,7 @@ function MessageCard({
                 value={draftReasoning}
                 onChange={(e) => setDraftReasoning(e.target.value)}
                 rows={Math.min(10, Math.max(2, (draftReasoning.match(/\n/g)?.length ?? 0) + 2))}
-                placeholder="（无思考，可留空）"
+                placeholder={copy.noThinking}
                 className="text-[12px]"
               />
             </label>
@@ -603,7 +681,7 @@ function MessageCard({
                   seg={seg}
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value)}
-                  placeholder="工具名"
+                  placeholder={copy.toolName}
                   className="text-[12px]"
                 />
               </label>
@@ -615,7 +693,7 @@ function MessageCard({
                   seg={seg}
                   value={draftToolCallId}
                   onChange={(e) => setDraftToolCallId(e.target.value)}
-                  placeholder="对应的 call id"
+                  placeholder={copy.toolCallId}
                   className="text-[12px]"
                 />
               </label>
@@ -623,7 +701,7 @@ function MessageCard({
           )}
           <label className="block">
             <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-(--color-muted)">
-              内容
+              {copy.content}
             </span>
             <RoleTextarea
               seg={seg}
@@ -631,7 +709,7 @@ function MessageCard({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={Math.min(12, Math.max(2, (draft.match(/\n/g)?.length ?? 0) + 2))}
-              placeholder={isAssistant ? "（仅工具调用时可留空）" : ""}
+              placeholder={isAssistant ? copy.assistantContentPlaceholder : ""}
               className="text-[13px]"
             />
           </label>
@@ -648,7 +726,7 @@ function MessageCard({
                   if (toolCallsError) setToolCallsError(null);
                 }}
                 rows={Math.min(14, Math.max(2, (draftToolCalls.match(/\n/g)?.length ?? 0) + 1))}
-                placeholder={'（无工具调用，可留空）\n[\n  { "name": "calculator", "arguments": { "expression": "1+1" } }\n]'}
+                placeholder={copy.toolCallsPlaceholder}
                 className="text-[12px]"
               />
             </label>
@@ -658,10 +736,10 @@ function MessageCard({
           )}
           <div className="mt-1 flex items-center justify-end gap-1">
             <button className="btn" onClick={cancel}>
-              取消
+              {copy.cancel}
             </button>
             <button className="btn btn-primary" onClick={save}>
-              保存
+              {copy.save}
             </button>
           </div>
         </div>
@@ -699,7 +777,7 @@ function MessageCard({
             </div>
           )}
           {content === "" && !m.tool_calls?.length && !m.reasoning && (
-            <div className="text-[12px] italic text-(--color-muted)">（空内容）</div>
+            <div className="text-[12px] italic text-(--color-muted)">{copy.emptyContent}</div>
           )}
           {isLong && (
             <button
@@ -708,11 +786,11 @@ function MessageCard({
             >
               {expanded ? (
                 <>
-                  <ChevronUp size={12} strokeWidth={2} /> 收起
+                  <ChevronUp size={12} strokeWidth={2} /> {copy.collapse}
                 </>
               ) : (
                 <>
-                  <ChevronDown size={12} strokeWidth={2} /> 展开全部
+                  <ChevronDown size={12} strokeWidth={2} /> {copy.expand}
                 </>
               )}
             </button>

@@ -1,6 +1,5 @@
 ---
-// Topic hub for chat2token: one landing page linking to the topic's surfaces
-// (article, playground, and the published Bilibili episode).
+// Chinese topic hub for chat2token. The default `/chat2token` route is English.
 import Layout from "~/layouts/Layout.astro";
 import Header from "~/components/Header.astro";
 import CoverHero from "~/components/CoverHero.astro";
@@ -10,36 +9,36 @@ export const prerender = true;
 
 const surfaces = [
   {
-    href: "/chat2token/blog",
-    kind: "Article · English",
-    title: "From Prompt to KV Cache",
-    desc: "An interactive long-form post with several hands-on mini labs",
+    href: "/chat2token/blog/zh",
+    kind: "文章 · 中文",
+    title: "从提示词到 KV Cache",
+    desc: "包含多个可玩的小组件的交互式博客",
     accent: "var(--color-primary-500)",
   },
   {
-    href: "/chat2token/playground",
+    href: "/chat2token/playground/zh",
     kind: "Playground",
-    title: "Interactive Lab",
-    desc: "Freely explore what happens underneath an AI conversation",
+    title: "交互式实验",
+    desc: "自由探索在 AI 的对话之下都发生了什么",
     accent: "var(--color-accent-500)",
   },
   {
     href: "https://www.bilibili.com/video/BV1VWVz6TExk/",
-    kind: "Video · Bilibili",
-    title: "How can an AI with no memory and no letters keep up with you?",
-    desc: "A 10-minute visual explainer video",
+    kind: "视频 · Bilibili",
+    title: "失忆 + 不识字的 AI，凭什么「稳稳接住你」",
+    desc: "10 分钟可视化科普视频",
     accent: "#00a1d6",
     external: true,
   },
 ];
 ---
 
-<Layout title="Chat to Token · TokenTour">
-  <Header langHref="/chat2token/zh" langLabel="中文" langAria="Switch to Chinese" />
+<Layout title="Chat to Token · TokenTour" lang="zh-CN">
+  <Header langHref="/chat2token" langLabel="English" langAria="Switch to English" />
 
   <main class="column hub">
     <CoverHero
-      label="Chat to Token cover"
+      label="Chat to Token 封面"
       titleLayout="stack"
       titleLines={[
         { text: "Chat", tone: "primary", size: "hero" },
@@ -49,9 +48,9 @@ const surfaces = [
     />
 
     <p class="hub__lede">
-      From prompt to KV Cache: how a conversation with AI becomes Messages, a Chat Template, Tokens, and KV Cache.
+      从提示词到 KV Cache：和 AI 的对话如何变成 Messages、Chat Template、Token 和 KV Cache。
       <br />
-      Start with the article, jump into the playground, or keep both open side by side.
+      你可以从任意一种方式开始探索，也可以同时进行，内容范围大体相同。
     </p>
 
     <div class="hub__grid">

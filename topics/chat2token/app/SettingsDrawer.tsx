@@ -1,14 +1,54 @@
 import { useEffect, useState } from "react";
 import { useConversation } from "./store";
 import { PROVIDER_PRESETS } from "./lib/providers";
+import { useLang } from "./i18n";
+import { providerPresetLabel } from "./locale";
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
+const settingsCopy = {
+  en: {
+    title: "Settings · BYOK",
+    close: "Close",
+    note:
+      "API keys are stored only in browser localStorage and are never uploaded. OpenAI and Anthropic support direct browser calls; if CORS blocks a provider, enable proxy mode (the key is still attached by the frontend and is not persisted server-side).",
+    provider: "Provider",
+    baseUrl: "Base URL",
+    apiKey: "API Key",
+    modelName: "Model name",
+    routing: "Routing",
+    proxy: "Route through /api/proxy (helps with CORS)",
+    temperature: "Temperature",
+    maxTokens: "Max tokens",
+    hint:
+      "Tip: the imaginary architecture selector only affects the KV Cache visualization (shape, memory, and reuse). It is decoupled from the model you actually call.",
+    imaginaryArch: "imaginary architecture",
+  },
+  zh: {
+    title: "设置 · BYOK",
+    close: "关闭",
+    note:
+      "API key 仅保存在浏览器 localStorage，从不上报。OpenAI 与 Anthropic 支持浏览器直连；如遇 CORS 阻塞可切换到代理模式（key 仍由前端附带，服务端不持久化）。",
+    provider: "Provider",
+    baseUrl: "Base URL",
+    apiKey: "API Key",
+    modelName: "模型名称",
+    routing: "转发",
+    proxy: "使用 /api/proxy 转发（解决 CORS）",
+    temperature: "Temperature",
+    maxTokens: "最大 tokens",
+    hint: "提示：假想架构选择只影响 KV Cache 可视化（形状/内存/复用），与实际调用的模型解耦。",
+    imaginaryArch: "假想架构",
+  },
+} as const;
+
 export default function SettingsDrawer({ open, onClose }: Props) {
   const state = useConversation();
+  const lang = useLang();
+  const copy = settingsCopy[lang];
   const [presetId, setPresetId] = useState(state.provider.id);
 
   useEffect(() => {
@@ -50,27 +90,27 @@ export default function SettingsDrawer({ open, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <div className="text-base font-semibold">设置 · BYOK</div>
+          <div className="text-base font-semibold">{copy.title}</div>
           <button onClick={onClose} className="btn">
-            关闭
+            {copy.close}
           </button>
         </div>
         <p className="mt-1 text-xs text-(--color-muted)">
-          API key 仅保存在浏览器 localStorage，从不上报。OpenAI 与 Anthropic 支持浏览器直连；如遇 CORS 阻塞可切换到代理模式（key 仍由前端附带，服务端不持久化）。
+          {copy.note}
         </p>
 
         <div className="mt-4 space-y-3">
-          <Row label="Provider">
+          <Row label={copy.provider}>
             <select value={presetId} onChange={(e) => handlePreset(e.target.value)} className="w-full">
               {PROVIDER_PRESETS.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label}
+                  {providerPresetLabel(p.id, p.label, lang)}
                 </option>
               ))}
             </select>
           </Row>
 
-          <Row label="Base URL">
+          <Row label={copy.baseUrl}>
             <input
               type="text"
               value={state.provider.baseUrl}
@@ -79,7 +119,7 @@ export default function SettingsDrawer({ open, onClose }: Props) {
             />
           </Row>
 
-          <Row label="API Key">
+          <Row label={copy.apiKey}>
             <input
               type="password"
               autoComplete="off"
@@ -90,7 +130,7 @@ export default function SettingsDrawer({ open, onClose }: Props) {
             />
           </Row>
 
-          <Row label="Model name">
+          <Row label={copy.modelName}>
             <input
               type="text"
               value={state.provider.model}
@@ -105,19 +145,19 @@ export default function SettingsDrawer({ open, onClose }: Props) {
             </datalist>
           </Row>
 
-          <Row label="Routing">
+          <Row label={copy.routing}>
             <label className="flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 checked={state.provider.useProxy}
                 onChange={(e) => state.setProvider({ useProxy: e.target.checked })}
               />
-              使用 /api/proxy 转发（解决 CORS）
+              {copy.proxy}
             </label>
           </Row>
 
           <div className="grid grid-cols-2 gap-3">
-            <Row label={`Temperature · ${state.provider.temperature.toFixed(2)}`}>
+            <Row label={`${copy.temperature} · ${state.provider.temperature.toFixed(2)}`}>
               <input
                 type="range"
                 min={0}
@@ -130,7 +170,7 @@ export default function SettingsDrawer({ open, onClose }: Props) {
                 className="w-full"
               />
             </Row>
-            <Row label="Max tokens">
+            <Row label={copy.maxTokens}>
               <input
                 type="number"
                 min={1}
@@ -147,7 +187,15 @@ export default function SettingsDrawer({ open, onClose }: Props) {
 
         <div className="mt-auto text-[11px] text-(--color-muted)">
           <div>
-            提示：<span className="kbd">假想架构</span> 选择只影响 KV Cache 可视化（形状/内存/复用），与实际调用的模型解耦。
+            {lang === "zh" ? (
+              <>
+                提示：<span className="kbd">{copy.imaginaryArch}</span> 选择只影响 KV Cache 可视化（形状/内存/复用），与实际调用的模型解耦。
+              </>
+            ) : (
+              <>
+                Tip: the <span className="kbd">{copy.imaginaryArch}</span> selector only affects the KV Cache visualization (shape, memory, and reuse). It is decoupled from the model you actually call.
+              </>
+            )}
           </div>
         </div>
       </div>

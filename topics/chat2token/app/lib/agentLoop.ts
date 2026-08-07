@@ -5,6 +5,7 @@ import { findTool } from "./tools";
 import { renderAndTokenize } from "./pipeline";
 import { countTokens } from "./tokenizer";
 import { snapshotKv, diffPrefix } from "./kvSim";
+import type { Lang } from "../locale";
 
 export interface RunLoopArgs {
   provider: ChatProvider;
@@ -25,6 +26,7 @@ export interface RunLoopArgs {
    * `arch.family` because chat template selection is its own knob now.
    */
   templateFamily: string;
+  lang?: Lang;
   onStep: (step: TimelineStep) => void;
   onAssistantDelta?: (delta: string) => void;
   onMessages: (messages: Message[]) => void;
@@ -49,6 +51,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
     maxTokens = 1024,
     tokenizerKey = null,
     templateFamily,
+    lang = "en",
   } = args;
 
   const family = templateFamily;
@@ -63,7 +66,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
       id: nanoid(8),
       kind: "compose",
       turn,
-      label: `Turn ${turn}: 拼装 messages`,
+      label: stepLabel(lang, turn, "compose"),
       messagesSnapshot: workingMessages,
       createdAt: Date.now(),
     };
@@ -81,7 +84,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
       id: nanoid(8),
       kind: "template",
       turn,
-      label: `Turn ${turn}: 应用 chat template`,
+      label: stepLabel(lang, turn, "template"),
       messagesSnapshot: workingMessages,
       templateText: text,
       createdAt: Date.now(),
@@ -92,7 +95,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
       id: nanoid(8),
       kind: "tokenize",
       turn,
-      label: `Turn ${turn}: 分词 (${tokens.length} tokens)`,
+      label: stepLabel(lang, turn, "tokenize", { tokens: tokens.length }),
       messagesSnapshot: workingMessages,
       templateText: text,
       tokens,
@@ -105,7 +108,10 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
       id: nanoid(8),
       kind: "prefill",
       turn,
-      label: `Turn ${turn}: prefill (${tokens.length - reusedPrefix} new, ${reusedPrefix} reused)`,
+      label: stepLabel(lang, turn, "prefill", {
+        fresh: tokens.length - reusedPrefix,
+        reused: reusedPrefix,
+      }),
       messagesSnapshot: workingMessages,
       templateText: text,
       tokens,
@@ -137,7 +143,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
             id: nanoid(8),
             kind: "decode",
             turn,
-            label: `Turn ${turn}: decode +${decodeAppended} tokens`,
+            label: stepLabel(lang, turn, "decode", { tokens: decodeAppended }),
             messagesSnapshot: workingMessages,
             templateText: text,
             tokens,
@@ -170,7 +176,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
           id: nanoid(8),
           kind: "tool_call",
           turn,
-          label: `Turn ${turn}: tool_call → ${tc.name}`,
+          label: stepLabel(lang, turn, "tool_call", { name: tc.name }),
           messagesSnapshot: workingMessages,
           toolCall: tc,
           createdAt: Date.now(),
@@ -202,7 +208,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
           id: nanoid(8),
           kind: "tool_result",
           turn,
-          label: `Turn ${turn}: tool_result ← ${tc.name}`,
+          label: stepLabel(lang, turn, "tool_result", { name: tc.name }),
           messagesSnapshot: workingMessages,
           toolCall: tc,
           toolResult: result,
@@ -231,7 +237,7 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
       id: nanoid(8),
       kind: "final",
       turn,
-      label: `Turn ${turn}: 完成 (${finishReason ?? "stop"})`,
+      label: stepLabel(lang, turn, "final", { reason: finishReason ?? "stop" }),
       messagesSnapshot: workingMessages,
       templateText: postText,
       tokens: postTokens,
@@ -250,4 +256,50 @@ export async function runAgentLoop(args: RunLoopArgs): Promise<Message[]> {
   }
 
   return workingMessages;
+}
+
+function stepLabel(
+  lang: Lang,
+  turn: number,
+  kind: "compose" | "template" | "tokenize" | "prefill" | "decode" | "tool_call" | "tool_result" | "final",
+  data: { tokens?: number; fresh?: number; reused?: number; name?: string; reason?: string } = {},
+): string {
+  if (lang === "zh") {
+    switch (kind) {
+      case "compose":
+        return `Turn ${turn}: 拼装 messages`;
+      case "template":
+        return `Turn ${turn}: 应用 chat template`;
+      case "tokenize":
+        return `Turn ${turn}: 分词 (${data.tokens} tokens)`;
+      case "prefill":
+        return `Turn ${turn}: prefill (${data.fresh} new, ${data.reused} reused)`;
+      case "decode":
+        return `Turn ${turn}: decode +${data.tokens} tokens`;
+      case "tool_call":
+        return `Turn ${turn}: tool_call → ${data.name}`;
+      case "tool_result":
+        return `Turn ${turn}: tool_result ← ${data.name}`;
+      case "final":
+        return `Turn ${turn}: 完成 (${data.reason})`;
+    }
+  }
+  switch (kind) {
+    case "compose":
+      return `Turn ${turn}: compose messages`;
+    case "template":
+      return `Turn ${turn}: apply chat template`;
+    case "tokenize":
+      return `Turn ${turn}: tokenize (${data.tokens} tokens)`;
+    case "prefill":
+      return `Turn ${turn}: prefill (${data.fresh} new, ${data.reused} reused)`;
+    case "decode":
+      return `Turn ${turn}: decode +${data.tokens} tokens`;
+    case "tool_call":
+      return `Turn ${turn}: tool call → ${data.name}`;
+    case "tool_result":
+      return `Turn ${turn}: tool result ← ${data.name}`;
+    case "final":
+      return `Turn ${turn}: finished (${data.reason})`;
+  }
 }
