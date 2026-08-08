@@ -63,7 +63,7 @@ const chatCopy = {
     noModel: "未设置模型",
     cancel: "取消",
     demo: "演示",
-    demoTitle: "无需 API key，跑一段录制好的对话",
+    demoTitle: "无需 API key，加载一段录制好的示例对话",
     send: "发送",
     edit: "编辑",
     delete: "删除",

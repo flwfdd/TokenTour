@@ -8,8 +8,8 @@
 | 路径 | 内容 |
 | --- | --- |
 | `app/` | 互动 Playground（原 `src/islands` + `src/lib` + `src/store` 整块迁入） |
-| `blog/` | 主题文章（`zh/`、`en/`），目前是占位 |
-| `video/` | Remotion / 资产（不参与部署），目前是占位 |
+| `blog/` | 主题文章（`zh/`、`en/`）与交互 Lab |
+| `video/` | Remotion / Manim 资产（不参与站点部署） |
 
 ## 本地预览
 

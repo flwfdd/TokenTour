@@ -386,7 +386,7 @@ const toolCallSnippet = `<tool_call>
   </p>
 
   <p>
-    In this article, we will move top-down through Context, Messages, Chat Templates, Tokens, and KV Cache,
+    In this article, we will move top-down through Context, Messages, Chat Template, Tokens, and KV Cache,
     using interactive visualizations to make each layer visible.
   </p>
 
@@ -410,8 +410,8 @@ const toolCallSnippet = `<tool_call>
 
   <PlaygroundCta title="Interactive playground" label="Open Playground">
     This article comes with a browser playground: chat freely with a small agent on the left, while the right side
-    shows four synchronized lenses—Messages, Chat Template, Tokens, and Context × KV Cache. Colors and hover highlights
-    are linked across panels, so it is worth keeping open while you read.
+    shows synchronized lenses—Chat Template, Tokens, and Context × KV Cache (plus the Messages list inside the chat
+    column). Colors and hover highlights are linked across panels, so it is worth keeping open while you read.
   </PlaygroundCta>
 
   <h2>Messages</h2>
@@ -661,7 +661,7 @@ const toolCallSnippet = `<tool_call>
   </p>
 
   <p>
-    In general, Chat Templates are not interchangeable between models. During training, each model family sees a
+    In general, Chat Template formats are not interchangeable between models. During training, each model family sees a
     particular format, and at inference time it tends to follow that format. Give it an unfamiliar template and it may
     produce malformed output.
   </p>
