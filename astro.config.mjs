@@ -5,15 +5,15 @@ import cloudflare from "@astrojs/cloudflare";
 import tailwindcss from "@tailwindcss/vite";
 
 const isLocalDev = process.env.TOKENTOUR_LOCAL_DEV === "1";
+const isStaticExport = process.env.TOKENTOUR_STATIC === "1";
 
-// We ship one static page (`src/pages/index.astro`, explicitly prerendered)
-// plus one Worker-rendered endpoint (`src/pages/api/proxy.ts`). The
-// Cloudflare adapter writes prerendered pages to `dist/` as static assets
-// and the SSR entry to `dist/_worker.js/`; Wrangler picks both up via the
-// config in `wrangler.jsonc`.
+// Default production builds target Cloudflare Workers: static pages are written
+// to `dist/` and the BYOK proxy endpoint is emitted as a Worker entry. For
+// GitHub Pages mirrors, set `TOKENTOUR_STATIC=1` to build a plain static site
+// with no adapter or Worker route.
 export default defineConfig({
-  output: "server",
-  ...(isLocalDev
+  output: isStaticExport ? "static" : "server",
+  ...(isLocalDev || isStaticExport
     ? {}
     : {
         adapter: cloudflare({

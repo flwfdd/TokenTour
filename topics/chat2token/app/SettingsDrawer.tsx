@@ -15,6 +15,8 @@ const settingsCopy = {
     close: "Close",
     note:
       "API keys are stored only in browser localStorage and are never uploaded. OpenAI and Anthropic support direct browser calls; if CORS blocks a provider, enable proxy mode (the key is still attached by the frontend and is not persisted server-side).",
+    staticNote:
+      "Static mirror mode: API keys stay in browser localStorage, and provider calls are made directly from the browser. /api/proxy is not available on GitHub Pages.",
     provider: "Provider",
     baseUrl: "Base URL",
     apiKey: "API Key",
@@ -32,6 +34,8 @@ const settingsCopy = {
     close: "关闭",
     note:
       "API key 仅保存在浏览器 localStorage，从不上报。OpenAI 与 Anthropic 支持浏览器直连；如遇 CORS 阻塞可切换到代理模式（key 仍由前端附带，服务端不持久化）。",
+    staticNote:
+      "静态镜像模式：API key 仅保存在浏览器 localStorage，Provider 请求由浏览器直连；GitHub Pages 不提供 /api/proxy。",
     provider: "Provider",
     baseUrl: "Base URL",
     apiKey: "API Key",
@@ -50,6 +54,7 @@ export default function SettingsDrawer({ open, onClose }: Props) {
   const lang = useLang();
   const copy = settingsCopy[lang];
   const [presetId, setPresetId] = useState(state.provider.id);
+  const isStaticMirror = import.meta.env.PUBLIC_TOKENTOUR_STATIC === "1";
 
   useEffect(() => {
     if (open) setPresetId(state.provider.id);
@@ -96,7 +101,7 @@ export default function SettingsDrawer({ open, onClose }: Props) {
           </button>
         </div>
         <p className="mt-1 text-xs text-(--color-muted)">
-          {copy.note}
+          {isStaticMirror ? copy.staticNote : copy.note}
         </p>
 
         <div className="mt-4 space-y-3">
@@ -145,16 +150,18 @@ export default function SettingsDrawer({ open, onClose }: Props) {
             </datalist>
           </Row>
 
-          <Row label={copy.routing}>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={state.provider.useProxy}
-                onChange={(e) => state.setProvider({ useProxy: e.target.checked })}
-              />
-              {copy.proxy}
-            </label>
-          </Row>
+          {!isStaticMirror && (
+            <Row label={copy.routing}>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={state.provider.useProxy}
+                  onChange={(e) => state.setProvider({ useProxy: e.target.checked })}
+                />
+                {copy.proxy}
+              </label>
+            </Row>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Row label={`${copy.temperature} · ${state.provider.temperature.toFixed(2)}`}>
