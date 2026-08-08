@@ -83,11 +83,11 @@ export default function Intro({ open, onClose }: Props) {
           <li>
             {isZh ? (
               <>
-                <b>Context × KV</b>（下）— 各角色各占多少、哪些 token 命中了缓存、以及大致的显存开销。
+                <b>Context × KV Cache</b>（下）— 各角色各占多少、哪些 token 命中了缓存、以及大致的显存开销。
               </>
             ) : (
               <>
-                <b>Context × KV</b> (bottom) — role distribution, cache hits, and rough KV memory cost.
+                <b>Context × KV Cache</b> (bottom) — role distribution, cache hits, and rough KV memory cost.
               </>
             )}
           </li>

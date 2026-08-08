@@ -16,21 +16,21 @@
 ## 界面分区
 
 ```
-┌─────────── Header ──── 分享 / 设置 ─┐
-│ ┌─────────┬──────────┬──────────┐ │
-│ │         │  ② 模板  │  ③ Tokens│ │
-│ │ ① 对话  ├──────────┴──────────┤ │
-│ │         │  ④ Context × KV     │ │
-│ └─────────┴─────────────────────┘ │
-└───────────────────────────────────┘
+┌──────────────── Header ──── 分享 / 设置 ──┐
+│ ┌──────────┬─────────────────┬──────────┐ │
+│ │          │ ② Chat Template │ ③ Tokens │ │
+│ │ ① 对话   ├─────────────────┴──────────┤ │
+│ │          │ ④ Context × KV Cache       │ │
+│ └──────────┴────────────────────────────┘ │
+└───────────────────────────────────────────┘
 ```
 
 | 区域 | 说明 |
 | --- | --- |
 | ① 对话 | 系统 prompt、tools 开关、消息列表、输入框 |
-| ② 模板 | 当前 messages 经 Jinja 渲染后的完整字符串 |
+| ② Chat Template | 当前 messages 经 Jinja 渲染后的完整字符串 |
 | ③ Tokens | 模板字符串再经分词器拆出的 token 序列 |
-| ④ Context × KV | KV cache 状态分布 + 容量监控 + 内存估算 |
+| ④ Context × KV Cache | KV cache 状态分布 + 容量监控 + 内存估算 |
 
 ---
 
@@ -57,7 +57,7 @@
 | --- | --- |
 | 顶部 **family 选择器** | Qwen3 / DeepSeek-V3 / GPT-OSS。切换后整个应用都改用这一家的模板（基线和 token 会重新计算）。 |
 | **+ 对比** 按钮 | 旁边并排另一家的渲染结果。两侧滚动联动 —— hover 其中一边，另一边自动滚到同一条消息附近，方便你看「同一组 messages 在不同家模板下的 prefix 长度差多少」。 |
-| 字符高亮 | 不同角色用不同色带（system / user / assistant / tool / tools_schema / control）。Hover 某段字符会触发跨面板高亮。 |
+| 字符高亮 | 不同角色用不同色带（system / user / assistant / tool / tools_schema）。Hover 某段字符会触发跨面板高亮。 |
 
 > 模板源自上游官方 Jinja 文件，不做任何二次魔改。详见 `topics/chat2token/app/lib/chatTemplates/*.jinja`，可用 `pnpm sync-chat-templates` 重新拉取。DeepSeek 用的是 vLLM 的 `tool_chat_template_deepseekv3.jinja`，自带 `# Tools` 渲染。
 
@@ -77,7 +77,7 @@
 
 ---
 
-## ④ Context × KV 面板（底部满宽）
+## ④ Context × KV Cache 面板（底部满宽）
 
 把模板 token 序列翻译成「KV cache 里的状态分布 + 内存占用」。
 
@@ -94,11 +94,11 @@
 ### 中段三条
 1. **上下文窗口占用条** —— 总长度对当前 ctx 上限的百分比，过 80% 转橙，过 100% 转红。
 2. **角色分布条** —— 按 token 序列顺序聚合相邻同角色 token 组成色块。
-3. **KV cache 状态条** —— 每个方格 = 1 个 token（超 512 自动桶化），颜色 = 命中 / 未命中 / 输出 / 未占用。
+3. **KV cache 状态条** —— 每个方格 = 1 个 token（超 512 自动桶化），颜色 = 缓存命中输入 / 缓存未命中输入 / 输出 / 未占用。
 
 ### 底部 DualLegend
-- 左边 **KV 状态** chips：命中输入 / 未命中输入 / 输出 + 数量。点击 = pin 该状态（再点取消），其它面板会过滤显示。
-- 右边 **角色** chips：system / tools_schema / control / user / assistant / tool / generation + 数量。
+- 左边 **KV cache 状态** chips：缓存命中输入 / 缓存未命中输入 / 输出 + 数量。点击 = pin 该状态（再点取消），其它面板会过滤显示。
+- 右边 **角色** chips：system / 工具 schema / user / assistant / 工具结果 + 数量。
 
 ### 右上控件
 | 控件 | 作用 |
@@ -118,7 +118,7 @@
 | 模板某段字符 | 对应 token 高亮、消息卡片高亮、KV 状态色块高亮 |
 | token chip | 对应字符段、消息、KV 格全部高亮；底部信息条显示该 token 详细信息 |
 | KV cell | 反推回 token / 字符 / 消息 |
-| **角色 chip** | 所有该角色的 token / 字符 / KV 格保持亮，其它变暗；**同时点亮该角色 token 涉及的所有 KV 状态 tile**（看出 user 的 token 是横跨"命中 + 未命中"还是全部命中） |
+| **角色 chip** | 所有该角色的 token / 字符 / KV 格保持亮，其它变暗；**同时点亮该角色 token 涉及的所有 KV 状态 tile**（看出 user 的 token 是横跨「缓存命中输入 + 缓存未命中输入」还是全部命中） |
 | **KV 状态 chip** | 所有该状态的 KV 格保持亮，其它变暗 |
 
 被动滚动：hover 时**你正在看的面板不会自动滚动**，但其它面板会主动滚到对应位置；hover 在对比子面板里时，主面板 + 另一边对比面板都会跟随。
@@ -130,12 +130,12 @@
 TokenTour 模拟了一个真实 KV cache server 的 prefix-match 逻辑：
 
 1. **初始化**：页面打开 / 刷新 / Demo 跑完，系统把当前 messages 冻结为「server 已缓存的基线」。如果末条是 assistant，则按「**它就是刚 decode 完的**」分解：
-   - **命中输入** = assistant 之前的所有 token
-   - **未命中输入** = 这轮 gen prompt 头部（Qwen 是 `<|im_start|>assistant\n`、DeepSeek vLLM 模板因为 user 已粘上 `<｜Assistant｜>` 所以是 0）
+   - **缓存命中输入** = assistant 之前的所有 token
+   - **缓存未命中输入** = 这轮 gen prompt 头部（Qwen 是 `<|im_start|>assistant\n`、DeepSeek vLLM 模板因为 user 已粘上 `<｜Assistant｜>` 所以是 0）
    - **输出** = assistant 内容 + 结束符
-2. **改动任意前缀消息**（user / system / tools）：基线不变，当前 token 序列与基线做最长公共前缀 diff —— **命中输入** **缩短**到分歧点，分歧之后的 token 全部归入 **未命中输入**，**输出** 归零。
-3. **恢复原文**：token 序列再次与基线一致，原来的"命中 / 未命中 / 输出"三段**自动复原**。
-4. **追加新消息**（如手动新建一条 user）：基线是当前的前缀 → **命中输入** = 基线长度，新加的部分进 **未命中输入**，**输出** = 0。
+2. **改动任意前缀消息**（user / system / tools）：基线不变，当前 token 序列与基线做最长公共前缀 diff —— **缓存命中输入** **缩短**到分歧点，分歧之后的 token 全部归入 **缓存未命中输入**，**输出** 归零。
+3. **恢复原文**：token 序列再次与基线一致，原来的「缓存命中输入 / 缓存未命中输入 / 输出」三段**自动复原**。
+4. **追加新消息**（如手动新建一条 user）：基线是当前的前缀 → **缓存命中输入** = 基线长度，新加的部分进 **缓存未命中输入**，**输出** = 0。
 5. **点 "发送" 触发真实生成**：时间线上开始出现 compose → template → tokenize → prefill → decode → final 步骤（这里仍用底层术语指代推理阶段）。任意点击其中一步可"穿越"回那一刻的 KV 状态；点选项之外的空白回到 live 视图。
 6. **切换 chat template / tokenizer**：渲染出来的 token 序列变了，旧基线无法对比 → 自动 reset，按当前状态重新冻结。
 
@@ -183,7 +183,7 @@ TokenTour 模拟了一个真实 KV cache server 的 prefix-match 逻辑：
 **Q：左边架构卡片的内存数字准吗？**
 A：shape 和总字节是按 `2 (K+V) × L × KV_H × headDim × dtype` 真实算的，跟 vLLM / Megatron 的 KV 公式一致。"激活值"本身是示意。
 
-**Q：BYOK 模式下显示的"命中输入"是真实命中吗？**
+**Q：BYOK 模式下显示的「缓存命中输入」是真实命中吗？**
 A：不是。我们看不到 provider 服务端真实的 prefix cache 命中情况，**展示的是"理论可复用区域"** —— 即"如果服务端按当前 token 序列做最长前缀匹配，应该能复用多少"。
 
 **Q：为什么 DeepSeek vLLM 模板渲染出来有那么多缩进空白？**
@@ -192,5 +192,5 @@ A：那是上游官方 Jinja 模板本身的 whitespace handling，我们故意�
 **Q：Tokenizer 选 auto 是什么意思？**
 A：自动选最匹配当前 chat template 家族的分词器（Qwen → Qwen3 BPE；DeepSeek → DeepSeek-V3；GPT-OSS → harmony）。第一次切到 HF 分词器会从 `hf-mirror.com` 下载（已配置好镜像，国内网络可用）。
 
-**Q：编辑了消息但"命中输入"没变？**
+**Q：编辑了消息但「缓存命中输入」没变？**
 A：检查左下角的 KV 状态条 —— 如果时间线上有 steps（也就是发送过一次），编辑会跟最近一步的 prefill 比，而不是初始基线；这是和真实 server 行为对齐的。想回到"初始基线"对比，按 **clearSteps**（点时间线区域以外、或重新刷新页面即可）。

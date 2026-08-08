@@ -524,10 +524,10 @@ const toolCallSnippet = `<tool_call>
     Code，都是通过类似的方式，花式拼接消息列表来实现的，当然就像火电、核电都能叫做花式烧开水一样，具体的做法也各有千秋，碍于篇幅，这里就不过多赘述了，我们可能在后续的文章中再详细探讨。
   </p>
 
-  <Callout type="accent" title="动手实验 · 消息面板（Messages）">
+  <Callout type="accent" title="动手实验 · Messages 面板">
     <p>
-      在沙盒中点开「查看 Messages JSON」，可以看到当前对话被组织成的完整消息列表；编辑任意一条消息，下游的
-      Chat Template、Tokens、KV Cache 都会随之实时变化。
+      在沙盒中点开「查看 JSON」，可以看到当前对话被组织成的完整消息列表；编辑任意一条消息，下游的
+      Chat Template、Tokens、Context × KV Cache 都会随之实时变化。
     </p>
     <PlaygroundTry />
   </Callout>
@@ -730,7 +730,7 @@ const toolCallSnippet = `<tool_call>
     Token，为了避免歧义，可以强制将其切分为多个普通 Token。
   </p>
 
-  <Callout type="accent" title="动手实验 · 分词器面板（Tokens）">
+  <Callout type="accent" title="动手实验 · Tokens 面板">
     <p>
       在 Tokens 面板可切换 Qwen3 / DeepSeek-V3 / GPT-OSS 等分词器，实时查看同一段文本被切成的
       Token 小块、对应的 Token ID 与词表大小；hover 单个 Token 会高亮它在 Chat Template
