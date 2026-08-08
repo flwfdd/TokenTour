@@ -23,6 +23,7 @@
     "@lucide/astro": "^1.17.0",
     "@tailwindcss/vite": "^4.3.0",
     "astro": "^6.3.6",
+    "driver.js": "^1.8.0",
     "framer-motion": "^12.39.0",
     "gpt-tokenizer": "^3.4.0",
     "katex": "^0.17.0",

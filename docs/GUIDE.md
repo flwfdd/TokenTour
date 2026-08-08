@@ -169,6 +169,14 @@ TokenTour 模拟了一个真实 KV cache server 的 prefix-match 逻辑：
 
 ---
 
+## 博客 Try it → 引导 tour
+
+长文里各节的 **Try it** 会新开 Playground，并带上 `?tour=`（如 `messages` / `chat-template` / `tokens` / `kv-cache`）。页面 hydrate 后用 driver.js 指一下对应控件；地址栏会立刻去掉 `tour` 参数，刷新不会重播。文首总 CTA 不带 tour，只做一般入口。
+
+分享用的 `#s=…` 与 `?tour=` 可以同时出现；加载快照时只清 hash，不会冲掉查询参数。
+
+---
+
 ## 键盘快捷键
 
 | 按键 | 作用 |

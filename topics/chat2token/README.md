@@ -8,6 +8,7 @@
 | 路径 | 内容 |
 | --- | --- |
 | `app/` | 互动 Playground（原 `src/islands` + `src/lib` + `src/store` 整块迁入） |
+| `app/tour/` | 博客 Try-it → Playground 的 `?tour=` driver.js 引导（用户说明见 [GUIDE](../../docs/GUIDE.md)；博客 CTA 见 `blog/zh/PlaygroundTry.astro`） |
 | `blog/` | 主题文章（`zh/`、`en/`）与交互 Lab |
 | `video/` | Remotion / Manim 资产（不参与站点部署） |
 

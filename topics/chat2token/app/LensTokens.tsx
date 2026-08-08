@@ -150,6 +150,7 @@ export default function LensTokens() {
       controls={
         <>
           <TokenizerSelect
+            dataTour="tokenizer"
             value={tokenizerKey ?? ""}
             onChange={(k) => setTokenizerKey(k)}
             defaultLabel={`auto · ${TOK_LABEL_SHORT[defaultTokenizerKey(view.family)] ?? defaultTokenizerKey(view.family)}`}
@@ -247,12 +248,14 @@ export default function LensTokens() {
 }
 
 function TokenizerSelect({
+  dataTour,
   value,
   onChange,
   defaultLabel,
   title,
   lang,
 }: {
+  dataTour?: string;
   value: string;
   onChange: (v: string | null) => void;
   defaultLabel: string;
@@ -262,6 +265,7 @@ function TokenizerSelect({
   const copy = tokensCopy[lang];
   return (
     <select
+      data-tour={dataTour}
       value={value}
       onChange={(e) => onChange(e.target.value || null)}
       className="text-[11px] py-0.5 px-1.5 max-w-[16ch] truncate"

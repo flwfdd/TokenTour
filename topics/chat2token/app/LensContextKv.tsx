@@ -198,6 +198,7 @@ export default function LensContextKv() {
       controls={
         <>
           <select
+            data-tour="kv-model"
             value={modelKey}
             onChange={(e) => setModelKey(e.target.value)}
             className="text-[11px] py-0.5 px-1.5 max-w-[24ch] truncate"
@@ -542,7 +543,10 @@ function KvCellGrid({
   const stateLabel = STATE_LABEL[lang];
   if (cells.length === 0) {
     return (
-      <div className="grid h-7 place-items-center rounded-md bg-(--color-surface-2) text-[10px] text-(--color-muted)">
+      <div
+        data-tour="kv-states"
+        className="grid h-7 place-items-center rounded-md bg-(--color-surface-2) text-[10px] text-(--color-muted)"
+      >
         {copy.noKv}
       </div>
     );
@@ -550,6 +554,7 @@ function KvCellGrid({
   const total = cells[cells.length - 1]!.end;
   return (
     <div
+      data-tour="kv-states"
       // Same wrapper styling as RoleStackedBar so percentages align 1:1.
       className="flex h-7 w-full overflow-hidden rounded-md bg-(--color-surface-2)"
       onMouseLeave={() => onHover(null)}

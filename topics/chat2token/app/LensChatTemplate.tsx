@@ -133,6 +133,7 @@ export default function LensChatTemplate() {
       controls={
         <>
           <select
+            data-tour="template-family"
             value={templateFamily}
             onChange={(e) => setTemplateFamily(e.target.value)}
             className="text-[11px] py-0.5 px-1.5"

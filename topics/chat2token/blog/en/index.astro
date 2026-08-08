@@ -541,7 +541,7 @@ const toolCallSnippet = `<tool_call>
       In the playground, open “View JSON” to see the current conversation as a full message list. Edit any
       message, and the downstream Chat Template, Tokens, and Context × KV Cache panels update immediately.
     </p>
-    <PlaygroundTry label="Open the playground" />
+    <PlaygroundTry label="Open the playground" tour="messages" />
   </Callout>
 
   <h2>Chat Template</h2>
@@ -672,7 +672,7 @@ const toolCallSnippet = `<tool_call>
       Messages render into different plain-text inputs. Hover any fragment to highlight its source message and role
       across panels.
     </p>
-    <PlaygroundTry label="Open the playground" />
+    <PlaygroundTry label="Open the playground" tour="chat-template" />
   </Callout>
 
   <h2>Token</h2>
@@ -749,7 +749,7 @@ const toolCallSnippet = `<tool_call>
       In the Tokens panel, switch among Qwen3, DeepSeek-V3, GPT-OSS, and other tokenizers. You can inspect each Token,
       its Token ID, and the vocabulary size. Hover a Token to highlight where it came from in the Chat Template.
     </p>
-    <PlaygroundTry label="Open the playground" />
+    <PlaygroundTry label="Open the playground" tour="tokens" />
   </Callout>
 
   <h2>KV Cache</h2>
@@ -837,7 +837,7 @@ const toolCallSnippet = `<tool_call>
       input, and output. Edit an early message and the cached-input region shrinks; restore it and the cache hit returns.
       You can also switch model architectures to compare KV memory footprint per Token.
     </p>
-    <PlaygroundTry label="Open the playground" />
+    <PlaygroundTry label="Open the playground" tour="kv-cache" />
   </Callout>
 
   <p>

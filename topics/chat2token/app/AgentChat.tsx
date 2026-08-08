@@ -285,6 +285,7 @@ export default function AgentChat() {
           ))}
         </div>
         <button
+          data-tour="view-json"
           onClick={() => state.setMessagesModalOpen(true)}
           className="text-[11px] text-(--color-accent) hover:underline underline-offset-2"
           title={copy.viewJsonTitle}
@@ -295,6 +296,7 @@ export default function AgentChat() {
 
       <div
         ref={listRef}
+        data-tour="messages-list"
         className="flex-1 min-h-0 overflow-auto px-2.5 py-2 space-y-1.5"
         onMouseLeave={() => state.setHoverMessage(null)}
       >
@@ -615,6 +617,7 @@ function MessageCard({
         setArmedDelete(false);
       }}
       data-msgid={m.id}
+      data-tour="message-card"
       className="rounded-xl p-2 text-sm"
       style={{
         ...roleSurfaceStyle(seg, { hovered: highlighted, border: true, instant: true }),

@@ -1,0 +1,39 @@
+/* Playground-scoped driver.js theme. Keep light paper/cyan; no purple glow. */
+.tt-driver-popover.driver-popover {
+  background: var(--color-paper, #fff);
+  color: var(--color-ink, #1a1a1a);
+  border: 1.5px solid var(--color-rule, #d6d3cd);
+  border-radius: 10px;
+  box-shadow: 0 3px 0 0 var(--color-rule, #d6d3cd);
+  max-width: 320px;
+}
+
+.tt-driver-popover .driver-popover-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.tt-driver-popover .driver-popover-description {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-ink-soft, #3f3f3f);
+}
+
+.tt-driver-popover .driver-popover-progress-text {
+  font-size: 11px;
+  color: var(--color-muted, #6b6b6b);
+}
+
+.tt-driver-popover button.driver-popover-next-btn,
+.tt-driver-popover button.driver-popover-done-btn {
+  background: var(--color-primary-500, #0ea5b7);
+  color: #fff;
+  border: 1.5px solid var(--color-primary-700, #0b7f8c);
+  text-shadow: none;
+}
+
+.tt-driver-popover button.driver-popover-prev-btn,
+.tt-driver-popover button.driver-popover-close-btn {
+  color: var(--color-ink-soft, #3f3f3f);
+  text-shadow: none;
+}

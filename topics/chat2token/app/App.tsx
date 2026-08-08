@@ -12,6 +12,7 @@ import { readSnapshotFromUrl, snapshotToUrl } from "./lib/snapshot";
 import { I18nProvider } from "./i18n";
 import { langFromPath, type Lang } from "./locale";
 import { DEFAULT_SYSTEM_PROMPT, isKnownSeedState, seedMessagesFor } from "./localizedDefaults";
+import TourHost from "./tour/TourHost";
 
 const appCopy = {
   en: {
@@ -60,7 +61,10 @@ export default function App({ initialLang = "en" }: { initialLang?: Lang }) {
       s.setMessages(snap.messages);
       s.setEnabledTools(snap.enabledTools);
       s.setModelKey(snap.modelKey);
-      history.replaceState(null, "", window.location.pathname);
+      const u = new URL(window.location.href);
+      // Clear only the share hash so `?tour=` (and other search) can coexist.
+      u.hash = "";
+      history.replaceState(null, "", u.pathname + u.search);
     } else {
       const s = useConversation.getState();
       if (isKnownSeedState(s.systemPrompt, s.messages)) {
@@ -163,6 +167,7 @@ export default function App({ initialLang = "en" }: { initialLang?: Lang }) {
         <MessagesJsonModal />
         <Intro open={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
+      <TourHost />
     </I18nProvider>
   );
 }

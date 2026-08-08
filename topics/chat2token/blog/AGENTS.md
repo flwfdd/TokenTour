@@ -68,6 +68,10 @@
 
 ## 更新日志（每次节点追加）
 
+### 2026-08-08 · Blog Try-it → playground driver.js tours · 新增
+- 四个 Try-it callout 分别带 `tour=messages|chat-template|tokens|kv-cache`；Playground `TourHost` hydrate 后跑短引导并 strip 查询参数。
+- Blog CTA：`PlaygroundTry.astro` / `PlaygroundCta.astro`；Playground 实现：`topics/chat2token/app/tour/`。
+
 ### 2026-08-05 · English blog / language switch · 新增
 - 新增默认英文博客正文 `topics/chat2token/blog/en/index.astro`，默认路由为 `/chat2token/blog`；中文原文保留在 `/chat2token/blog/zh`，右上角 Header 通过 `langHref/langLabel` 手动切换。
 - `BpeLab` / `PrefixCacheLab` / `AttentionKvLab` / `MessageView` / `TemplateLab` 增加轻量 `lang` prop；中文默认不变，英文页传 `lang="en"` 后静态标签与脚本动态提示一起切换。

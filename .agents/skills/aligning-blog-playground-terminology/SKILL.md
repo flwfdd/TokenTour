@@ -17,7 +17,7 @@ Keep TokenTour's **blog** and **playground** using the same names for the same c
 | --- | --- |
 | Playground UI copy | `topics/chat2token/app/` — `*Copy` objects, `locale.ts`, Pane `title`s, `Intro.tsx` |
 | Blog prose + labs | `topics/chat2token/blog/{zh,en}/index.astro`, `topics/chat2token/blog/*Lab.astro`, `MessageView.astro`, `TemplateLab.astro` |
-| Supporting docs | `docs/GUIDE.md`, `topics/chat2token/docs/outline.md` |
+| Supporting docs | `docs/GUIDE.md`, `topics/chat2token/docs/outline.md`, `topics/chat2token/app/tour/tourCopy.ts` |
 
 Out of scope unless the user asks: video narration (`topics/chat2token/video/`), Remotion hard-coded strings.
 

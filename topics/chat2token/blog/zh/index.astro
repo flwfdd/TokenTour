@@ -407,7 +407,7 @@ const toolCallSnippet = `<tool_call>
     已经强大到近乎无所不能，但一切的一切都构筑在「词语接龙」之上，你可能会有一些疑问（如果没有也可以看看后面的一些问题你能否回答🌚），相信在阅读完本文后，你会找到答案。
   </p>
 
-  <PlaygroundCta>
+  <PlaygroundCta href="/chat2token/playground/zh">
     本文配套一个可在浏览器里实时运行的沙盒：左侧和一个小 Agent 自由对话，右侧同步展示
     Messages、Chat Template、Tokens、Context × KV Cache 四个透视面板，颜色与 hover
     高亮在各面板间联动。建议边读边开着它对照。
@@ -529,7 +529,7 @@ const toolCallSnippet = `<tool_call>
       在沙盒中点开「查看 JSON」，可以看到当前对话被组织成的完整消息列表；编辑任意一条消息，下游的
       Chat Template、Tokens、Context × KV Cache 都会随之实时变化。
     </p>
-    <PlaygroundTry />
+    <PlaygroundTry href="/chat2token/playground/zh" tour="messages" />
   </Callout>
 
   <h2>Chat Template</h2>
@@ -654,7 +654,7 @@ const toolCallSnippet = `<tool_call>
       在沙盒右侧的 Chat Template 面板里切换 Qwen3 / DeepSeek-V3 / GPT-OSS，可以并排对比同一段
       Messages 被不同模板渲染出的纯文本；hover 任意片段会在各面板间联动高亮其归属的消息与角色。
     </p>
-    <PlaygroundTry />
+    <PlaygroundTry href="/chat2token/playground/zh" tour="chat-template" />
   </Callout>
 
   <h2>Token</h2>
@@ -736,7 +736,7 @@ const toolCallSnippet = `<tool_call>
       Token 小块、对应的 Token ID 与词表大小；hover 单个 Token 会高亮它在 Chat Template
       中的来源位置。
     </p>
-    <PlaygroundTry />
+    <PlaygroundTry href="/chat2token/playground/zh" tour="tokens" />
   </Callout>
 
   <h2>KV Cache</h2>
@@ -823,7 +823,7 @@ const toolCallSnippet = `<tool_call>
       输出」三色条；编辑靠前的某条消息会看到「缓存命中输入」实时缩短、改回原样又恢复，切换模型架构还能对比每
       Token 的 KV 占用量级。
     </p>
-    <PlaygroundTry />
+    <PlaygroundTry href="/chat2token/playground/zh" tour="kv-cache" />
   </Callout>
 
   <p>
