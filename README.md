@@ -1,145 +1,47 @@
+<p align="right">
+  <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
 <p align="center">
-  <img src="public/cover.webp" alt="TokenTour · From prompt to KV Cache" width="820">
+  <img src="public/cover.webp" alt="TokenTour · From Agent Messages to Tokens and KV Cache" width="820">
 </p>
 
 <h1 align="center">TokenTour</h1>
 
 <p align="center">
-  Interactive notes and small labs for understanding how LLM applications are put together.
+  A vertical cross-section of the LLM application stack—from Agent messages to tokens and KV cache.
 </p>
 
-TokenTour is a web project about the parts of an LLM app that are usually hidden behind a chat box: messages, chat templates, tokenization, context windows, tool calls, and KV cache reuse.
+<p align="center">
+  <a href="https://tokentour.flwfdd.xyz/chat2token">Read the explorable</a> ·
+  <a href="https://tokentour.flwfdd.xyz/chat2token/playground">Open the playground</a>
+</p>
 
-The first module is **Chat to Token**. It has a long-form article and a playground that let you edit a conversation and watch the downstream representation update in real time.
+LLM applications look simple from the outside, but a single turn passes through many layers: Agent messages, chat templates, tokenization, the context window, attention, and KV cache. Each layer has its own representation, and the connections between them are easy to lose.
 
-The default language is English. Chinese versions are available from the language switch in the top-right corner.
+TokenTour makes a **vertical cut through that stack**. Instead of explaining one layer in isolation, it follows the same conversation downward and shows how a change at one level propagates through the rest.
 
-## Current routes
+The first explorable, **Chat to Token**, combines a guided article with a synchronized playground. Edit a conversation and inspect how it becomes model input, how that input is tokenized, and what it means for context usage and KV cache reuse.
 
-| Route | Description |
-| --- | --- |
-| `/` | English home |
-| `/zh` | Chinese home |
-| `/chat2token` | English module hub |
-| `/chat2token/zh` | Chinese module hub |
-| `/chat2token/blog` | English interactive article |
-| `/chat2token/blog/zh` | Chinese interactive article |
-| `/chat2token/playground` | English playground |
-| `/chat2token/playground/zh` | Chinese playground |
-| `/design` | Internal design reference page |
+<p align="center">
+  <a href="https://tokentour.flwfdd.xyz/chat2token/playground">
+    <img src="public/playground_screenshot.webp" alt="TokenTour playground showing a conversation alongside its chat template, tokens, context, and KV cache" width="1000">
+  </a>
+</p>
 
-## What is in the playground
+## What you can explore
 
-The playground is a React app embedded in Astro. The left side is an editable chat state; the right side shows three synchronized views:
+- **Messages → chat template**: compare how model families such as Qwen3, DeepSeek-V3, and GPT-OSS serialize the same conversation and tool calls.
+- **Text → tokens**: inspect token boundaries, byte-level behavior, and how small edits change the sequence.
+- **Tokens → context and KV cache**: see causal attention, estimate KV memory, and visualize which prefix could be reused on the next turn.
+- **Cross-layer tracing**: hover or select an item to follow the corresponding region across the synchronized views.
 
-- **Chat Template** — renders the current messages through model-family templates such as Qwen3, DeepSeek-V3, and GPT-OSS.
-- **Tokens** — tokenizes the rendered template text with real tokenizers where available, including built-in `gpt-tokenizer` encoders and local/HF tokenizer files.
-- **Context × KV Cache** — estimates context usage, prefix reuse, and KV memory footprint from model architecture parameters.
+The playground includes prepared Agent traces, so no API key is needed. You can also bring your own provider and key to generate a trace in the browser. Keys are stored locally in your browser and are not persisted by TokenTour.
 
-Hovering a message or token highlights the corresponding region across panels. The demo mode works without an API key; BYOK mode can call OpenAI, Anthropic, DeepSeek, SiliconFlow, DashScope, OpenRouter, or any OpenAI-compatible endpoint.
+## Scope
 
-API keys are stored in browser `localStorage`. If proxy mode is enabled, the key is attached by the browser request and forwarded by `/api/proxy`; the Worker does not persist it.
+TokenTour is an explanatory model, not an inference engine. Tokenization uses real model tokenizers where available, and KV memory is calculated from model architecture parameters. Attention cells and prefix-cache states are visual explanations of those mechanisms; they are not provider telemetry or real model activations.
 
-## Run locally
+The interface defaults to English. Use the language switch in the top-right corner for Chinese.
 
-Use pnpm 10 or newer. The package manager version is pinned in `package.json`.
-
-```bash
-pnpm install
-pnpm fetch-tokenizers
-pnpm dev
-```
-
-Then open:
-
-```text
-http://localhost:4321
-```
-
-`pnpm fetch-tokenizers` downloads the tokenizer files used by the playground into `public/tokenizers/`. The site can still start without them, but some tokenizer choices will fall back or load remotely.
-
-The `dev` script sets `TOKENTOUR_LOCAL_DEV=1`, which skips the Cloudflare adapter during local Astro dev. The Vite watcher also uses polling to avoid Linux `ENOSPC` watcher-limit errors in constrained environments.
-
-## Build and deploy
-
-The project is set up for Cloudflare Workers via `@astrojs/cloudflare`.
-
-```bash
-pnpm fetch-tokenizers
-pnpm build
-pnpm deploy
-```
-
-`pnpm deploy` runs:
-
-```bash
-astro build && wrangler deploy
-```
-
-Most pages are prerendered static output. The main server-side route is `/api/proxy`, used by BYOK proxy mode.
-
-For local Worker preview:
-
-```bash
-pnpm build
-pnpm preview
-```
-
-If you connect the repository to Cloudflare Workers Builds, use:
-
-- Build command: `pnpm install && pnpm fetch-tokenizers && pnpm build`
-- Deploy command: `pnpm exec wrangler deploy`
-- Node.js: 22 or newer
-
-## Project layout
-
-The repository is split between the site shell and topic-specific code.
-
-```text
-src/
-├── pages/                         # Astro routes
-├── components/                    # Shared Astro components
-├── layouts/
-└── styles/
-
-topics/chat2token/
-├── app/                           # Playground React app
-│   ├── App.tsx
-│   ├── AgentChat.tsx
-│   ├── LensChatTemplate.tsx
-│   ├── LensTokens.tsx
-│   ├── LensContextKv.tsx
-│   ├── store/
-│   └── lib/
-├── blog/                          # Article content and embedded labs
-│   ├── en/index.astro
-│   ├── zh/index.astro
-│   ├── BpeLab.astro
-│   ├── PrefixCacheLab.astro
-│   └── AttentionKvLab.astro
-└── video/                         # Remotion source, not part of the website build path
-```
-
-`src/` owns routing, layout, and shared UI. Topic code lives under `topics/<topic>/` so new modules can be added without mixing their implementation with the site shell.
-
-## Implementation notes
-
-- Framework: Astro 6, React 19 islands, TypeScript, Tailwind v4.
-- State: Zustand with selected fields persisted to `localStorage`.
-- Chat templates: Jinja templates rendered with `@huggingface/jinja`.
-- Tokenizers: `gpt-tokenizer` for built-in encoders, plus local/HF tokenizer assets for Qwen3 and DeepSeek-V3.
-- Streaming: native `fetch` and SSE-style provider adapters.
-- KV cache visualization: token-prefix diffing plus architecture metadata from `modelRegistry.ts`.
-- Design: shared color/type/layout tokens live in `src/styles/design.css`.
-
-## What is approximate
-
-The visualizations are meant to be inspectable and internally consistent, but they are not a full inference engine.
-
-- KV memory numbers are computed from model architecture parameters, but individual grid cells are a visualization of state, not real activations.
-- Prefix reuse is computed by comparing the current token sequence against a frozen local baseline. It shows what is reusable in principle; it does not confirm whether a provider-side prompt cache was actually hit.
-- Only a small set of tokenizers is bundled. Unknown model/tokenizer combinations may fall back to a nearby built-in tokenizer.
-
-## More details
-
-For a tour of the playground UI, see [docs/GUIDE.md](./docs/GUIDE.md).
+For local setup, deployment, and implementation notes, see [Development](./docs/DEVELOPMENT.md). For a detailed walkthrough of the playground, see [Playground Guide](./docs/GUIDE.md).
