@@ -1,7 +1,9 @@
 import { useEffect } from "react";
+import "driver.js/dist/driver.css";
 import { useLang } from "../i18n";
 import { buildTourSteps } from "./buildTourSteps";
 import { consumeTourParamFromUrl } from "./parseTourParam";
+import "./tour.css";
 
 /** Starts a short driver.js tour when the URL has `?tour=<id>`; no-op otherwise. */
 export default function TourHost() {
@@ -21,11 +23,7 @@ export default function TourHost() {
     let destroy: (() => void) | undefined;
 
     (async () => {
-      const [{ driver }] = await Promise.all([
-        import("driver.js"),
-        import("driver.js/dist/driver.css"),
-        import("./tour.css"),
-      ]);
+      const { driver } = await import("driver.js");
       if (cancelled) return;
 
       const d = driver({
